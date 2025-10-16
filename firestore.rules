@@ -1,0 +1,87 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userData() {
+      return isSignedIn() ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data : {};
+    }
+
+    function userRole() {
+      return userData().role != null ? userData().role : 'staff';
+    }
+
+    function userWarehouses() {
+      return userData().warehouses != null ? userData().warehouses : [];
+    }
+
+    function isAdmin() { return userRole() == 'admin'; }
+    function isManager() { return userRole() == 'manager'; }
+
+    // Products: readable by signed-in users restricted to their warehouses; write limited by role
+    match /products/{productId} {
+      allow read: if isSignedIn() && (
+        isAdmin() || isManager() || (resource.data.warehouse in userWarehouses())
+      );
+
+      allow create: if isSignedIn() && (isAdmin() || isManager());
+
+      allow update: if isSignedIn() && (
+        isAdmin() || (isManager() && (resource.data.warehouse in userWarehouses()))
+      );
+
+      allow delete: if isSignedIn() && (
+        isAdmin() || (isManager() && (resource.data.warehouse in userWarehouses()))
+      );
+    }
+
+    // Orders: readable by signed-in; write by manager/admin
+    match /orders/{orderId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && (isAdmin() || isManager());
+      allow delete: if isSignedIn() && isAdmin();
+    }
+
+    // Transfers: readable by signed-in; create/update by manager/admin
+    match /transfers/{transferId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && (isAdmin() || isManager());
+      allow delete: if isSignedIn() && isAdmin();
+    }
+
+    // Warehouses: read by signed-in, write by admin
+    match /warehouses/{warehouseId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && isAdmin();
+    }
+
+    // Categories: read by signed-in, write by manager/admin
+    match /categories/{categoryId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && (isAdmin() || isManager());
+    }
+
+    // Users: users can read their own doc; admin full control; self update allowed (cannot change role)
+    match /users/{userId} {
+      allow read: if isSignedIn() && (isAdmin() || isManager() || userId == request.auth.uid);
+      allow create: if isSignedIn() && (isAdmin() || userId == request.auth.uid);
+      allow update: if isSignedIn() && (
+        isAdmin() || (userId == request.auth.uid && request.resource.data.role == resource.data.role)
+      );
+      allow delete: if isSignedIn() && isAdmin();
+    }
+
+    // User settings subcollection: owner can read/write
+    match /users/{userId}/settings/{docId} {
+      allow read, write: if isSignedIn() && userId == request.auth.uid;
+    }
+
+    // Fallback: deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

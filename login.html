@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication - StockMaster</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --primary:#2c3e50; --secondary:#3498db; --light:#ecf0f1; --danger:#e74c3c; --success:#2ecc71; }
+        * { box-sizing:border-box; margin:0; padding:0; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background:#f5f7fa; color:#333; min-height:100vh; display:flex; align-items:center; justify-content:center; }
+        .card { background:#fff; width:420px; max-width:92vw; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.08); overflow:hidden; }
+        .card-header { background:var(--primary); color:#fff; padding:18px 20px; display:flex; align-items:center; gap:10px; }
+        .card-header i { color:var(--secondary); }
+        .card-body { padding:20px; }
+        .title { font-size:20px; font-weight:600; margin-bottom:8px; }
+        .subtitle { color:#7f8c8d; font-size:13px; margin-bottom:18px; }
+        .tabs { display:flex; margin-bottom:12px; }
+        .tab { flex:1; text-align:center; padding:10px 12px; cursor:pointer; font-weight:600; color:#2c3e50; border-bottom:2px solid transparent; background:#f8fafc; }
+        .tab.active { border-color:var(--secondary); background:#fff; }
+        .form-group { margin-bottom:14px; }
+        label { display:block; font-size:12px; color:#7f8c8d; margin-bottom:6px; }
+        input, select { width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:6px; outline:none; transition:border .2s; background:#fff; }
+        input:focus, select:focus { border-color:var(--secondary); }
+        .btn { width:100%; padding:10px 14px; border:none; border-radius:6px; cursor:pointer; background:var(--secondary); color:#fff; font-weight:600; position:relative; }
+        .btn:hover { background:#2980b9; }
+        .btn:disabled { background:#95a5a6; cursor:not-allowed; }
+        .btn-loading::after { content:'\f1ce'; font-family:'Font Awesome 6 Free'; font-weight:900; animation:spin 1s linear infinite; position:absolute; right:10px; }
+        @keyframes spin { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }
+        .error { display:none; margin-bottom:12px; padding:10px; background:rgba(231,76,60,.12); color:var(--danger); border:1px solid rgba(231,76,60,.35); border-radius:6px; font-size:13px; }
+        .success { display:none; margin-bottom:12px; padding:10px; background:rgba(46,204,113,.12); color:#2ecc71; border:1px solid rgba(46,204,113,.35); border-radius:6px; font-size:13px; }
+        .muted { font-size:12px; color:#7f8c8d; text-align:center; margin-top:10px; }
+        .muted a { color:var(--secondary); text-decoration:none; cursor:pointer; }
+        .hidden { display:none; }
+        .footer { padding:14px 20px; background:#fafafa; font-size:12px; color:#7f8c8d; text-align:center; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-boxes"></i>
+            <div>
+                <div style="font-size:18px; font-weight:600;">Stock<span style="color:var(--secondary)">Master</span></div>
+                <small style="opacity:.9">Inventory Management</small>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="tabs">
+                <div id="tab-signin" class="tab active">Sign In</div>
+                <div id="tab-signup" class="tab">Sign Up</div>
+            </div>
+
+            <div id="section-signin">
+                <div class="title">Welcome back</div>
+                <div class="subtitle">Use your credentials to access the dashboard.</div>
+                <div id="login-error" class="error">Invalid email or password.</div>
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="login-email">Email</label>
+                        <input type="email" id="login-email" placeholder="you@example.com" required />
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" placeholder="••••••••" required />
+                    </div>
+                    <button class="btn" type="submit"><i class="fas fa-right-to-bracket" style="margin-right:8px;"></i> Sign In</button>
+                </form>
+                <div class="muted">New here? <a id="link-to-signup">Create an account</a></div>
+                <div class="muted" style="margin-top:6px;">Demo login: any email, password "admin123"</div>
+            </div>
+
+            <div id="section-signup" class="hidden">
+                <div class="title">Create your account</div>
+                <div class="subtitle">Sign up to start managing your inventory.</div>
+                <div id="signup-error" class="error"></div>
+                <div id="signup-success" class="success">Account created! Redirecting…</div>
+                <form id="signup-form">
+                    <div class="form-group">
+                        <label for="su-first">First Name</label>
+                        <input type="text" id="su-first" placeholder="Jane" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="su-last">Last Name</label>
+                        <input type="text" id="su-last" placeholder="Doe" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="su-email">Email</label>
+                        <input type="email" id="su-email" placeholder="you@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="su-role">Role</label>
+                        <select id="su-role" required>
+                            <option value="" disabled selected>Select role...</option>
+                            <option value="staff">Staff</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="su-pass">Password</label>
+                        <input type="password" id="su-pass" placeholder="Minimum 6 characters" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="su-confirm">Confirm Password</label>
+                        <input type="password" id="su-confirm" placeholder="Re-enter password" required>
+                    </div>
+                    <button class="btn" type="submit"><i class="fas fa-user-plus" style="margin-right:8px;"></i> Sign Up</button>
+                </form>
+                <div class="muted">Already have an account? <a id="link-to-signin">Sign in</a></div>
+                <div class="muted" style="margin-top:6px;">Note: Admin role can only be assigned by existing admins.</div>
+            </div>
+        </div>
+        <div class="footer">StockMaster • Inventory Management</div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
+        import { getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+        import { getFirestore, doc, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+
+        const firebaseConfig = { 
+            apiKey: "AIzaSyAqBR_6p-5752sVeu_aMT2sNU2I_nUmaOQ", 
+            authDomain: "inventory-3b638.firebaseapp.com", 
+            projectId: "inventory-3b638", 
+            storageBucket: "inventory-3b638.firebasestorage.app", 
+            messagingSenderId: "65748912542", 
+            appId: "1:65748912542:web:8d40510d194bb3e1d6ae8f", 
+            measurementId: "G-6ECQLDLS71" 
+        };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        try { await setPersistence(auth, browserLocalPersistence); } catch {}
+
+        // Tabs toggle
+        const tabSignin = document.getElementById('tab-signin');
+        const tabSignup = document.getElementById('tab-signup');
+        const sectionSignin = document.getElementById('section-signin');
+        const sectionSignup = document.getElementById('section-signup');
+        function show(tab) {
+            const isSignup = tab === 'signup';
+            tabSignin.classList.toggle('active', !isSignup);
+            tabSignup.classList.toggle('active', isSignup);
+            sectionSignin.classList.toggle('hidden', isSignup);
+            sectionSignup.classList.toggle('hidden', !isSignup);
+        }
+        tabSignin.addEventListener('click', () => show('signin'));
+        tabSignup.addEventListener('click', () => show('signup'));
+        document.getElementById('link-to-signup').addEventListener('click', () => show('signup'));
+        document.getElementById('link-to-signin').addEventListener('click', () => show('signin'));
+
+        // Sign In
+        const loginForm = document.getElementById('login-form');
+        const loginError = document.getElementById('login-error');
+        const loginBtn = loginForm.querySelector('.btn');
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            loginError.style.display = 'none';
+            loginBtn.disabled = true;
+            loginBtn.classList.add('btn-loading');
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+            try {
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+                const userDoc = await getDoc(doc(db, 'users', user.uid));
+                if (userDoc.exists()) {
+                    const role = userDoc.data().role || 'staff';
+                    alert(`Signed in as ${role}`);
+                    window.location.href = 'products.html';
+                } else {
+                    loginError.textContent = 'User profile not found. Please sign up.';
+                    loginError.style.display = 'block';
+                }
+            } catch (err) {
+                const msg = (err?.code || '') + ' ' + (err?.message || '');
+                loginError.textContent = msg || 'Sign-in failed.';
+                loginError.style.display = 'block';
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.classList.remove('btn-loading');
+            }
+        });
+
+        // Sign Up
+        const signupForm = document.getElementById('signup-form');
+        const signupError = document.getElementById('signup-error');
+        const signupSuccess = document.getElementById('signup-success');
+        const signupBtn = signupForm.querySelector('.btn');
+        signupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            signupError.style.display = 'none';
+            signupSuccess.style.display = 'none';
+            signupBtn.disabled = true;
+            signupBtn.classList.add('btn-loading');
+            const firstName = document.getElementById('su-first').value.trim();
+            const lastName = document.getElementById('su-last').value.trim();
+            const email = document.getElementById('su-email').value.trim();
+            const role = document.getElementById('su-role').value;
+            const pass = document.getElementById('su-pass').value;
+            const confirm = document.getElementById('su-confirm').value;
+            if (pass.length < 6) {
+                signupError.textContent = 'Password must be at least 6 characters.';
+                signupError.style.display = 'block';
+                signupBtn.disabled = false;
+                signupBtn.classList.remove('btn-loading');
+                return;
+            }
+            if (pass !== confirm) {
+                signupError.textContent = 'Passwords do not match.';
+                signupError.style.display = 'block';
+                signupBtn.disabled = false;
+                signupBtn.classList.remove('btn-loading');
+                return;
+            }
+            if (!role) {
+                signupError.textContent = 'Please select a role.';
+                signupError.style.display = 'block';
+                signupBtn.disabled = false;
+                signupBtn.classList.remove('btn-loading');
+                return;
+            }
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+                const user = userCredential.user;
+                await updateProfile(user, { displayName: `${firstName} ${lastName}`.trim() });
+                await setDoc(doc(db, 'users', user.uid), {
+                    role: role,
+                    name: `${firstName} ${lastName}`.trim(),
+                    email: email,
+                    warehouses: [],
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                }, { merge: true });
+                signupSuccess.style.display = 'block';
+                setTimeout(() => { window.location.href = 'products.html'; }, 600);
+            } catch (err) {
+                const msg = (err?.code || '') + ' ' + (err?.message || '');
+                signupError.textContent = msg || 'Failed to create account';
+                signupError.style.display = 'block';
+            } finally {
+                signupBtn.disabled = false;
+                signupBtn.classList.remove('btn-loading');
+            }
+        });
+
+        // Offline hint
+        if (!navigator.onLine) {
+            const offline = document.createElement('div');
+            offline.textContent = 'You are offline. Connect to the internet to sign in/sign up.';
+            offline.style.cssText = 'margin:10px 20px; color:#e74c3c; font-size:12px;';
+            document.querySelector('.card-body')?.prepend(offline);
+        }
+    </script>
+</body>
+</html>
