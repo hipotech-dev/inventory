@@ -111,7 +111,7 @@
                     <h3>Company</h3>
                     <div class="form-row">
                         <div class="form-group"><label>Company Name</label><input type="text" id="co_name"></div>
-                        <div class="form-group"><label>Currency</label><select id="co_currency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="INR">INR</option></select></div>
+                        <div class="form-group"><label>Currency</label><select id="co_currency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="INR">INR</option><option value="TZS">TZS</option><option value="KES">KES</option><option value="UGX">UGX</option></select></div>
                     </div>
                     <div class="form-row">
                         <div class="form-group"><label>Address</label><input type="text" id="co_address"></div>
@@ -282,7 +282,6 @@
                         <label>Role</label>
                         <select id="u_role">
                             <option value="admin">Admin</option>
-                            <option value="manager">Manager</option>
                             <option value="staff">Staff</option>
                         </select>
                     </div>
@@ -293,8 +292,8 @@
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Set Password (optional)</label>
-                        <input type="password" id="u_password" placeholder="Set initial password">
+                        <label>Password (required for new users)</label>
+                        <input type="password" id="u_password" placeholder="Minimum 6 characters">
                     </div>
                     <div class="form-group">
                         <label>Actions</label>
@@ -339,8 +338,8 @@
 
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
-        import { getAuth, onAuthStateChanged, signOut, updateProfile, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
-        import { getFirestore, doc, setDoc, getDoc, getDocs, collection, onSnapshot, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+        import { getAuth, onAuthStateChanged, signOut, updateProfile, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+        import { getFirestore, doc, setDoc, getDoc, getDocs, collection, onSnapshot, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, setLogLevel } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 
         (function(){
             const defaults = {
@@ -373,14 +372,16 @@
                     });
                     const auth = getAuth(app);
                     const db = getFirestore(app);
-                    onAuthStateChanged(auth, (user) => {
+                    setLogLevel('error');
+                    onAuthStateChanged(auth, async (user) => {
                         if (!user) {
                             window.location.href = 'login.html';
                             return;
                         }
                         setHeader(user.displayName, user.email);
                         document.getElementById('btn-logout').onclick = () => signOut(auth).then(() => window.location.href = 'login.html');
-                        setupSettings(db, auth, user);
+                        await syncUserAccess(db, user);
+                        await setupSettings(db, auth, user);
                     });
                 } catch (e) {
                     console.error('Firebase initialization failed:', e);
@@ -389,8 +390,31 @@
                 }
             };
 
+            async function syncUserAccess(db, user) {
+                try {
+                    const meRef = doc(db, 'users', user.uid);
+                    const meSnap = await getDoc(meRef);
+                    if (!meSnap.exists()) {
+                        await setDoc(meRef, { 
+                            role: 'staff', 
+                            warehouses: [],
+                            name: user.displayName || user.email || 'User',
+                            email: user.email,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        }, { merge: true });
+                    }
+                    const role = meSnap.exists() && meSnap.data().role ? meSnap.data().role : 'staff';
+                    document.getElementById('user-role').textContent = role.charAt(0).toUpperCase() + role.slice(1);
+                } catch (e) {
+                    console.error('syncUserAccess error:', e);
+                }
+            }
+
             async function setupSettings(db, auth, user) {
                 const settingsDoc = doc(db, `users/${user.uid}/settings`, 'profile');
+                const meSnap = await getDoc(doc(db, 'users', user.uid));
+                const isAdmin = meSnap.exists() && meSnap.data().role === 'admin';
 
                 // Load settings
                 async function loadSettings() {
@@ -585,8 +609,10 @@
                     if (!name) return 'Warehouse name is required.';
                     if (!location) return 'Location is required.';
                     const q = query(collection(db, 'warehouses'), where('name', '==', name));
-                    const snap = await getDoc(doc(db, 'warehouses', warehouseForm.dataset.id || 'temp'));
-                    if (snap.exists() && !warehouseForm.dataset.id) return 'Warehouse name already exists.';
+                    const snap = await getDocs(q);
+                    if (!snap.empty && (!warehouseForm.dataset.id || !snap.docs.some(d => d.id === warehouseForm.dataset.id))) {
+                        return 'Warehouse name already exists.';
+                    }
                     return null;
                 }
 
@@ -595,10 +621,10 @@
                     const q = query(collection(db, 'warehouses'));
                     onSnapshot(q, (snap) => {
                         warehouseTableBody.innerHTML = snap.empty ? '<tr><td colspan="5" style="text-align:center; color:#95a5a6;">No warehouses found.</td></tr>' : '';
-                        snap.forEach(doc => {
-                            const w = doc.data();
+                        snap.forEach(warehouseDoc => {
+                            const w = warehouseDoc.data();
                             const tr = document.createElement('tr');
-                            tr.dataset.id = doc.id;
+                            tr.dataset.id = warehouseDoc.id;
                             tr.innerHTML = `
                                 <td>${w.name || ''}</td>
                                 <td>${w.location || ''}</td>
@@ -612,7 +638,7 @@
                             tr.querySelector('.btn-primary').onclick = () => {
                                 warehouseModal.style.display = 'flex';
                                 warehouseModal.querySelector('h3').textContent = 'Edit Warehouse';
-                                warehouseForm.dataset.id = doc.id;
+                                warehouseForm.dataset.id = warehouseDoc.id;
                                 document.getElementById('wh_name').value = w.name || '';
                                 document.getElementById('wh_location').value = w.location || '';
                                 document.getElementById('wh_manager').value = w.manager || '';
@@ -621,17 +647,17 @@
                             tr.querySelector('.btn-danger').onclick = async () => {
                                 if (!confirm(`Delete warehouse ${w.name}?`)) return;
                                 try {
-                                    // Check if warehouse is in use
+                                    if (!isAdmin) { alert('Only admins can delete warehouses.'); return; }
                                     const [productsSnap, ordersSnap, usersSnap] = await Promise.all([
-                                        getDocs(query(collection(db, 'products'), where('warehouse', '==', w.name))),
-                                        getDocs(query(collection(db, 'orders'), where('warehouse', '==', w.name))),
-                                        getDocs(query(collection(db, 'users'), where('warehouses', 'array-contains', w.name)))
+                                        getDocs(query(collection(db, 'products'), where('warehouse', '==', warehouseDoc.id))),
+                                        getDocs(query(collection(db, 'orders'), where('warehouse', '==', warehouseDoc.id))),
+                                        getDocs(query(collection(db, 'users'), where('warehouses', 'array-contains', warehouseDoc.id)))
                                     ]);
                                     if (!productsSnap.empty || !ordersSnap.empty || !usersSnap.empty) {
                                         alert('Cannot delete warehouse in use by products, orders, or users.');
                                         return;
                                     }
-                                    await deleteDoc(doc(db, 'warehouses', doc.id));
+                                    await deleteDoc(doc(db, 'warehouses', warehouseDoc.id));
                                     alert(`Warehouse ${w.name} deleted.`);
                                 } catch (error) {
                                     console.error('Error deleting warehouse:', error);
@@ -650,6 +676,11 @@
                 async function validateCategory() {
                     const name = document.getElementById('cat_name').value.trim();
                     if (!name) return 'Category name is required.';
+                    const q = query(collection(db, 'categories'), where('name', '==', name));
+                    const snap = await getDocs(q);
+                    if (!snap.empty && (!categoryForm.dataset.id || !snap.docs.some(d => d.id === categoryForm.dataset.id))) {
+                        return 'Category name already exists.';
+                    }
                     return null;
                 }
 
@@ -657,10 +688,10 @@
                     const q = query(collection(db, 'categories'));
                     onSnapshot(q, (snap) => {
                         categoryTableBody.innerHTML = snap.empty ? '<tr><td colspan="3" style="text-align:center; color:#95a5a6;">No categories found.</td></tr>' : '';
-                        snap.forEach(doc => {
-                            const c = doc.data();
+                        snap.forEach(categoryDoc => {
+                            const c = categoryDoc.data();
                             const tr = document.createElement('tr');
-                            tr.dataset.id = doc.id;
+                            tr.dataset.id = categoryDoc.id;
                             tr.innerHTML = `
                                 <td>${c.name || ''}</td>
                                 <td>${c.description || ''}</td>
@@ -672,17 +703,17 @@
                             tr.querySelector('.btn-primary').onclick = () => {
                                 categoryModal.style.display = 'flex';
                                 categoryModal.querySelector('h3').textContent = 'Edit Category';
-                                categoryForm.dataset.id = doc.id;
+                                categoryForm.dataset.id = categoryDoc.id;
                                 document.getElementById('cat_name').value = c.name || '';
                                 document.getElementById('cat_desc').value = c.description || '';
                             };
                             tr.querySelector('.btn-danger').onclick = async () => {
                                 if (!confirm(`Delete category ${c.name}?`)) return;
                                 try {
-                                    // Block delete if used by products
+                                    if (!isAdmin) { alert('Only admins can delete categories.'); return; }
                                     const usedSnap = await getDocs(query(collection(db, 'products'), where('category', '==', c.name)));
                                     if (!usedSnap.empty) { alert('Cannot delete category in use by products.'); return; }
-                                    await deleteDoc(doc(db, 'categories', doc.id));
+                                    await deleteDoc(doc(db, 'categories', categoryDoc.id));
                                     alert(`Category ${c.name} deleted.`);
                                 } catch (error) {
                                     console.error('Error deleting category:', error);
@@ -702,6 +733,7 @@
                     const error = await validateCategory();
                     if (error) { alert(error); return; }
                     try {
+                        if (!isAdmin) { alert('Only admins can manage categories.'); return; }
                         const data = {
                             name: document.getElementById('cat_name').value.trim(),
                             description: document.getElementById('cat_desc').value.trim(),
@@ -725,6 +757,7 @@
                 };
 
                 document.getElementById('add-category').onclick = () => {
+                    if (!isAdmin) { alert('Only admins can add categories.'); return; }
                     categoryModal.style.display = 'flex';
                     categoryModal.querySelector('h3').textContent = 'Add Category';
                     categoryForm.reset();
@@ -753,16 +786,17 @@
                             opt.textContent = 'No warehouses';
                             select.appendChild(opt);
                         } else {
-                            snap.forEach(d => {
-                                const w = d.data();
+                            snap.forEach(warehouseDoc => {
+                                const w = warehouseDoc.data();
                                 const opt = document.createElement('option');
-                                opt.value = w.name;
-                                opt.textContent = w.name;
+                                opt.value = warehouseDoc.id;
+                                opt.textContent = w.name || warehouseDoc.id;
                                 select.appendChild(opt);
                             });
                         }
                     } catch (e) {
                         console.error('Failed to load warehouses for user modal', e);
+                        alert('Failed to load warehouses for user modal.');
                     }
                 }
 
@@ -770,25 +804,29 @@
                     const q = query(collection(db, 'users'));
                     onSnapshot(q, (snap) => {
                         usersTableBody.innerHTML = snap.empty ? '<tr><td colspan="5" style="text-align:center; color:#95a5a6;">No users found.</td></tr>' : '';
-                        snap.forEach(doc => {
-                            const u = doc.data();
+                        snap.forEach(async userDoc => {
+                            const u = userDoc.data();
                             const tr = document.createElement('tr');
-                            tr.dataset.id = doc.id;
-                            const assigned = Array.isArray(u.warehouses) ? u.warehouses.join(', ') : '';
+                            tr.dataset.id = userDoc.id;
+                            const warehouseNames = Array.isArray(u.warehouses) ? (await Promise.all(u.warehouses.map(async id => {
+                                const docSnap = await getDoc(doc(db, 'warehouses', id));
+                                return docSnap.exists() ? docSnap.data().name : id;
+                            }))).join(', ') : '';
                             tr.innerHTML = `
                                 <td>${u.name || ''}</td>
                                 <td>${u.email || ''}</td>
                                 <td>${u.role || ''}</td>
-                                <td>${assigned}</td>
+                                <td>${warehouseNames}</td>
                                 <td>
                                     <button class="icon-btn btn-primary" title="Edit"><i class="fas fa-edit"></i></button>
                                     <button class="icon-btn btn-danger" title="Delete"><i class="fas fa-trash"></i></button>
                                 </td>
                             `;
                             tr.querySelector('.btn-primary').onclick = async () => {
+                                if (!isAdmin) { alert('Only admins can edit users.'); return; }
                                 userModal.style.display = 'flex';
                                 userModal.querySelector('h3').textContent = 'Edit User';
-                                userForm.dataset.id = doc.id;
+                                userForm.dataset.id = userDoc.id;
                                 document.getElementById('u_name').value = u.name || '';
                                 document.getElementById('u_email').value = u.email || '';
                                 document.getElementById('u_role').value = u.role || 'staff';
@@ -798,9 +836,10 @@
                                 Array.from(select.options).forEach(o => { o.selected = values.includes(o.value); });
                             };
                             tr.querySelector('.btn-danger').onclick = async () => {
+                                if (!isAdmin) { alert('Only admins can delete users.'); return; }
                                 if (!confirm(`Delete user ${u.name || u.email}?`)) return;
                                 try {
-                                    await deleteDoc(doc(db, 'users', doc.id));
+                                    await deleteDoc(doc(db, 'users', userDoc.id));
                                     alert('User deleted.');
                                 } catch (error) {
                                     console.error('Error deleting user:', error);
@@ -825,31 +864,29 @@
                     const password = document.getElementById('u_password').value;
                     if (!name) { alert('Name is required.'); return; }
                     if (!/^([^\s@]+)@([^\s@]+)\.[^\s@]+$/.test(email)) { alert('Valid email is required.'); return; }
+                    if (!userForm.dataset.id && !password) { alert('Password is required for new users.'); return; }
+                    if (password && password.length < 6) { alert('Password must be at least 6 characters.'); return; }
                     try {
+                        if (!isAdmin) {
+                            alert('Only admins can create or edit users.');
+                            return;
+                        }
                         const data = { name, email, role, warehouses, updatedAt: serverTimestamp(), updatedBy: user.uid };
                         if (!userForm.dataset.id) {
                             data.createdAt = serverTimestamp();
                             data.createdBy = user.uid;
                         }
-                        // If creating a new user and a password is provided, create Firebase Auth user via REST
                         let targetDocRef;
-                        if (!userForm.dataset.id && password) {
-                            const key = "AIzaSyAqBR_6p-5752sVeu_aMT2sNU2I_nUmaOQ";
-                            const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${key}`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ email, password, returnSecureToken: true })
-                            });
-                            const json = await res.json();
-                            if (!res.ok) {
-                                const msg = json?.error?.message || 'Failed to create auth user';
-                                alert(msg);
-                                return;
-                            }
-                            const authUid = json.localId;
-                            targetDocRef = doc(db, 'users', authUid);
+                        if (!userForm.dataset.id) {
+                            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                            targetDocRef = doc(db, 'users', userCredential.user.uid);
+                            await updateProfile(userCredential.user, { displayName: name });
                         } else {
-                            targetDocRef = userForm.dataset.id ? doc(db, 'users', userForm.dataset.id) : doc(collection(db, 'users'));
+                            targetDocRef = doc(db, 'users', userForm.dataset.id);
+                            const existingDoc = await getDoc(targetDocRef);
+                            if (existingDoc.exists() && existingDoc.data().email !== email) {
+                                await updateEmail((await getAuth().getUser(userForm.dataset.id)).user, email);
+                            }
                         }
                         await setDoc(targetDocRef, data, { merge: true });
                         alert(userForm.dataset.id ? 'User updated successfully.' : 'User added successfully.');
@@ -858,7 +895,15 @@
                         delete userForm.dataset.id;
                     } catch (error) {
                         console.error('Error saving user:', error);
-                        alert(`Failed to save user: ${error.message}`);
+                        let message = error.message;
+                        if (error.code === 'auth/email-already-in-use') {
+                            message = 'This email is already in use.';
+                        } else if (error.code === 'auth/invalid-email') {
+                            message = 'Invalid email format.';
+                        } else if (error.code === 'auth/requires-recent-login') {
+                            message = 'Please re-authenticate to update email.';
+                        }
+                        alert(`Failed to save user: ${message}`);
                     }
                 };
 
@@ -867,7 +912,6 @@
                     const email = document.getElementById('u_email').value.trim();
                     if (!/^([^\s@]+)@([^\s@]+)\.[^\s@]+$/.test(email)) { alert('Enter a valid email first.'); return; }
                     try {
-                        const auth = getAuth();
                         await sendPasswordResetEmail(auth, email);
                         alert('Password reset email sent.');
                     } catch (e) {
@@ -877,6 +921,7 @@
                 };
 
                 document.getElementById('add-user').onclick = async () => {
+                    if (!isAdmin) { alert('Only admins can add users.'); return; }
                     userModal.style.display = 'flex';
                     userModal.querySelector('h3').textContent = 'Add User';
                     userForm.reset();
@@ -903,6 +948,7 @@
                         return;
                     }
                     try {
+                        if (!isAdmin) { alert('Only admins can manage warehouses.'); return; }
                         const data = {
                             name: document.getElementById('wh_name').value.trim(),
                             location: document.getElementById('wh_location').value.trim(),
@@ -929,6 +975,7 @@
 
                 // Modal controls
                 document.getElementById('add-warehouse').onclick = () => {
+                    if (!isAdmin) { alert('Only admins can add warehouses.'); return; }
                     warehouseModal.style.display = 'flex';
                     warehouseModal.querySelector('h3').textContent = 'Add Warehouse';
                     warehouseForm.reset();
@@ -980,6 +1027,7 @@
                 loadSettings();
                 loadWarehouses();
                 loadUsers();
+                loadCategories();
             }
 
             init();
