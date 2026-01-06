@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - Inventory System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --primary:#2c3e50; --secondary:#3498db; --light:#ecf0f1; --danger:#e74c3c; --success:#2ecc71; }
+        * { box-sizing:border-box; margin:0; padding:0; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background:#f5f7fa; color:#333; min-height:100vh; display:flex; align-items:center; justify-content:center; }
+        .card { background:#fff; width:480px; max-width:92vw; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.08); overflow:hidden; }
+        .card-header { background:var(--primary); color:#fff; padding:18px 20px; display:flex; align-items:center; gap:10px; }
+        .card-header i { color:var(--secondary); }
+        .card-body { padding:20px; }
+        .title { font-size:20px; font-weight:600; margin-bottom:8px; }
+        .subtitle { color:#7f8c8d; font-size:13px; margin-bottom:18px; }
+        .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        .form-group { margin-bottom:14px; }
+        label { display:block; font-size:12px; color:#7f8c8d; margin-bottom:6px; }
+        input { width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:6px; outline:none; transition:border .2s; background:#fff; }
+        input:focus { border-color:var(--secondary); }
+        .btn { width:100%; padding:10px 14px; border:none; border-radius:6px; cursor:pointer; background:var(--secondary); color:#fff; font-weight:600; }
+        .btn:hover { background:#2980b9; }
+        .muted { font-size:12px; color:#7f8c8d; text-align:center; margin-top:10px; }
+        .muted a { color:var(--secondary); text-decoration:none; }
+        .error { display:none; margin-bottom:12px; padding:10px; background:rgba(231,76,60,.12); color:var(--danger); border:1px solid rgba(231,76,60,.35); border-radius:6px; font-size:13px; }
+        .success { display:none; margin-bottom:12px; padding:10px; background:rgba(46,204,113,.12); color:var(--success); border:1px solid rgba(46,204,113,.35); border-radius:6px; font-size:13px; }
+        @media (max-width: 520px){ .form-row { grid-template-columns:1fr; } }
+    </style>
+    <script>
+        (function(){
+            // Redirect to unified auth page
+            window.location.replace('login.html');
+        })();
+    </script>
+</head>
+<body>
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-user-plus"></i>
+            <div>
+                <div style="font-size:18px; font-weight:600;">Stock<span style="color:var(--secondary)">Master</span></div>
+                <small style="opacity:.9">Create your account</small>
+            </div>
+        </div>
+        <div class="card-body">
+            <div id="msg-error" class="error"></div>
+            <div id="msg-success" class="success">Account created! Redirecting...</div>
+            <form id="signup-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="firstName">First Name</label>
+                        <input type="text" id="firstName" placeholder="Jane" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="lastName">Last Name</label>
+                        <input type="text" id="lastName" placeholder="Doe" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" placeholder="you@example.com" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" placeholder="Minimum 6 characters" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="confirm">Confirm Password</label>
+                        <input type="password" id="confirm" placeholder="Re-enter password" required>
+                    </div>
+                </div>
+                <button class="btn" type="submit"><i class="fas fa-user-plus" style="margin-right:8px;"></i> Create Account</button>
+            </form>
+            <div class="muted">Already have an account? <a href="login.html">Sign in</a></div>
+        </div>
+    </div>
+
+    <script>
+        (function(){
+            const USERS_KEY = 'auth_users';
+            const TOKEN_KEY = 'auth_token';
+            const USER_KEY = 'auth_user';
+            const form = document.getElementById('signup-form');
+            const msgError = document.getElementById('msg-error');
+            const msgSuccess = document.getElementById('msg-success');
+
+            function loadUsers(){ try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; } catch { return []; } }
+            function saveUsers(users){ localStorage.setItem(USERS_KEY, JSON.stringify(users)); }
+
+            form.addEventListener('submit', function(e){
+                e.preventDefault();
+                msgError.style.display = 'none';
+                msgSuccess.style.display = 'none';
+                const firstName = document.getElementById('firstName').value.trim();
+                const lastName = document.getElementById('lastName').value.trim();
+                const email = document.getElementById('email').value.trim().toLowerCase();
+                const password = document.getElementById('password').value;
+                const confirm = document.getElementById('confirm').value;
+                if (!firstName || !lastName || !email || !password || !confirm){
+                    return;
+                }
+                if (password.length < 6){
+                    msgError.textContent = 'Password must be at least 6 characters.';
+                    msgError.style.display = 'block';
+                    return;
+                }
+                if (password !== confirm){
+                    msgError.textContent = 'Passwords do not match.';
+                    msgError.style.display = 'block';
+                    return;
+                }
+                const users = loadUsers();
+                if (users.some(u => u.email === email)){
+                    msgError.textContent = 'An account with this email already exists.';
+                    msgError.style.display = 'block';
+                    return;
+                }
+                const newUser = { email, firstName, lastName, createdAt: new Date().toISOString() };
+                users.push({ ...newUser, password });
+                saveUsers(users);
+                // Auto login
+                const token = 'token_' + Math.random().toString(36).slice(2);
+                localStorage.setItem(TOKEN_KEY, token);
+                localStorage.setItem(USER_KEY, JSON.stringify({ email, name: firstName + ' ' + lastName }));
+                msgSuccess.style.display = 'block';
+                setTimeout(() => { window.location.href = 'products.html'; }, 600);
+            });
+        })();
+    </script>
+</body>
+</html>
+

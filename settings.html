@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - StockMaster</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --primary:#2c3e50; --secondary:#3498db; --accent:#e74c3c; --light:#ecf0f1; --dark:#2c3e50; --success:#2ecc71; --warning:#f39c12; --danger:#e74c3c; --gray:#95a5a6; }
+        *{ margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body{ background:#f5f7fa; color:#333; line-height:1.6; }
+        .container{ display:grid; grid-template-columns:250px 1fr; min-height:100vh; }
+        .sidebar{ background:var(--primary); color:#fff; padding:20px 0; position:fixed; width:250px; height:100vh; overflow-y:auto; }
+        .logo{ text-align:center; padding:20px 0; border-bottom:1px solid rgba(255,255,255,.1); margin-bottom:20px; }
+        .logo h1{ font-size:24px; font-weight:600; }
+        .logo span{ color:var(--secondary); }
+        .menu-item{ padding:15px 25px; display:flex; align-items:center; cursor:pointer; transition:all .3s; }
+        .menu-item:hover, .menu-item.active{ background:rgba(255,255,255,.1); border-left:4px solid var(--secondary); }
+        .menu-item i{ margin-right:15px; font-size:18px; }
+        .main-content{ grid-column:2; padding:20px; }
+        .header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:30px; background:#fff; padding:15px 20px; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.05); }
+        .search-bar{ display:flex; align-items:center; background:#f5f7fa; border-radius:4px; padding:8px 15px; width:300px; }
+        .search-bar input{ border:none; background:transparent; width:100%; padding:5px; outline:none; }
+        .user-profile{ display:flex; align-items:center; }
+        .user-profile img{ width:40px; height:40px; border-radius:50%; margin-right:10px; object-fit:cover; }
+        .page-title{ font-size:24px; font-weight:600; color:var(--dark); margin-bottom:20px; }
+        .settings-grid{ display:grid; grid-template-columns:1fr; gap:20px; }
+        .card{ background:#fff; border-radius:8px; padding:20px; box-shadow:0 2px 10px rgba(0,0,0,.05); }
+        .card h3{ font-size:18px; margin-bottom:15px; }
+        .form-row{ display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:12px; }
+        .form-group{ display:flex; flex-direction:column; gap:6px; }
+        label{ font-size:12px; color:var(--gray); }
+        input[type="text"], input[type="email"], input[type="password"], input[type="tel"], select { padding:10px; border:1px solid #ddd; border-radius:4px; width:100%; }
+        .switch{ position:relative; display:inline-block; width:46px; height:24px; }
+        .switch input{ opacity:0; width:0; height:0; }
+        .slider{ position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#ccc; transition:.2s; border-radius:24px; }
+        .slider:before{ position:absolute; content:""; height:18px; width:18px; left:3px; bottom:3px; background:#fff; transition:.2s; border-radius:50%; }
+        input:checked + .slider{ background:var(--secondary); }
+        input:checked + .slider:before{ transform:translateX(22px); }
+        .actions{ margin-top:10px; display:flex; gap:10px; }
+        .btn{ padding:10px 14px; border:none; border-radius:4px; cursor:pointer; font-weight:500; display:flex; align-items:center; gap:8px; transition:all .3s; }
+        .btn-primary{ background:var(--secondary); color:#fff; }
+        .btn-primary:hover{ background:#2980b9; }
+        .btn-outline{ background:#fff; color:var(--secondary); border:1px solid var(--secondary); }
+        .btn-danger{ background:var(--danger); color:#fff; }
+        .btn-danger:hover{ background:#c0392b; }
+        .warehouse-table{ margin-top:20px; }
+        .warehouse-table table{ width:100%; border-collapse:collapse; }
+        .warehouse-table th, .warehouse-table td{ padding:12px; border-bottom:1px solid #eee; }
+        .warehouse-table th{ background:#f9f9f9; font-weight:600; color:var(--gray); }
+        .icon-btn{ padding:6px; border-radius:4px; cursor:pointer; border:none; color:#fff; display:inline-flex; align-items:center; justify-content:center; }
+        .modal{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); align-items:center; justify-content:center; z-index:1000; }
+        .modal-content{ background:#fff; width:600px; max-width:95vw; max-height:90vh; overflow-y:auto; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,.2); }
+        .modal-header{ display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid #eee; }
+        .modal-body{ padding:16px 18px; }
+        .modal-footer{ display:flex; gap:10px; justify-content:flex-end; padding:16px 18px; border-top:1px solid #eee; }
+        @media (max-width: 992px){ .container{ grid-template-columns:1fr; } .sidebar{ display:none; } .main-content{ grid-column:1; } }
+        @media (max-width: 768px){ 
+            .form-row{ grid-template-columns:1fr; } 
+            .header{ flex-direction:column; align-items:flex-start; } 
+            .search-bar{ width:100%; margin-bottom:15px; } 
+            .modal-content{ width:95vw; }
+            .warehouse-table{ overflow-x:auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="logo"><h1>Stock<span>Master</span></h1></div>
+            <div class="menu-item" data-href="index.html"><i class="fas fa-home"></i><span>Dashboard</span></div>
+            <div class="menu-item" data-href="products.html"><i class="fas fa-boxes"></i><span>Products</span></div>
+            <div class="menu-item" data-href="inventory.html"><i class="fas fa-warehouse"></i><span>Inventory</span></div>
+            <div class="menu-item" data-href="orders.html"><i class="fas fa-file-invoice-dollar"></i><span>Orders</span></div>
+            <div class="menu-item" data-href="transfers.html"><i class="fas fa-exchange-alt"></i><span>Transfers</span></div>
+            <div class="menu-item" data-href="reports.html"><i class="fas fa-chart-bar"></i><span>Reports</span></div>
+            <div class="menu-item" data-href="suppliers.html"><i class="fas fa-users"></i><span>Suppliers</span></div>
+            <div class="menu-item active" data-href="settings.html"><i class="fas fa-cog"></i><span>Settings</span></div>
+            <div class="menu-item" data-href="help.html"><i class="fas fa-question-circle"></i><span>Help & Support</span></div>
+        </div>
+        <div class="main-content">
+            <div class="header">
+                <div class="search-bar"><i class="fas fa-search"></i><input type="text" id="search" placeholder="Search settings..."></div>
+                <div class="user-profile" id="user-profile">
+                    <div style="margin-right:10px;">
+                        <div id="user-name">User</div>
+                        <small id="user-role">Authenticated</small>
+                    </div>
+                    <button id="btn-logout" class="btn btn-outline" style="padding:8px 10px;"><i class="fas fa-right-from-bracket"></i> Logout</button>
+                </div>
+            </div>
+
+            <h2 class="page-title">Settings</h2>
+
+            <div class="settings-grid">
+                <div class="card" id="card-account">
+                    <h3>Account</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>Full Name</label><input type="text" id="acc_name"></div>
+                        <div class="form-group"><label>Email</label><input type="email" id="acc_email"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Phone</label><input type="tel" id="acc_phone"></div>
+                        <div class="form-group"><label>Time Zone</label><select id="acc_tz"><option>UTC</option><option>America/New_York</option><option>Europe/London</option><option>Asia/Kolkata</option></select></div>
+                    </div>
+                    <div class="actions"><button class="btn btn-primary" id="save-account"><i class="fas fa-save"></i> Save Changes</button><button class="btn btn-outline" data-reset="account"><i class="fas fa-undo"></i> Reset</button></div>
+                </div>
+
+                <div class="card" id="card-company">
+                    <h3>Company</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>Company Name</label><input type="text" id="co_name"></div>
+                        <div class="form-group"><label>Currency</label><select id="co_currency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option><option value="INR">INR</option><option value="TZS">TZS</option><option value="KES">KES</option><option value="UGX">UGX</option></select></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Address</label><input type="text" id="co_address"></div>
+                        <div class="form-group"><label>Tax ID</label><input type="text" id="co_tax"></div>
+                    </div>
+                    <div class="actions"><button class="btn btn-primary" id="save-company"><i class="fas fa-save"></i> Save Changes</button><button class="btn btn-outline" data-reset="company"><i class="fas fa-undo"></i> Reset</button></div>
+                </div>
+
+                <div class="card" id="card-preferences">
+                    <h3>Preferences</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>Theme</label><select id="pref_theme"><option value="light">Light</option><option value="dark">Dark</option></select></div>
+                        <div class="form-group"><label>Items Per Page</label><select id="pref_page"><option>10</option><option>20</option><option>50</option><option>100</option></select></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Auto Refresh</label><label class="switch"><input type="checkbox" id="pref_refresh"><span class="slider"></span></label></div>
+                        <div class="form-group"><label>Show Tips</label><label class="switch"><input type="checkbox" id="pref_tips"><span class="slider"></span></label></div>
+                    </div>
+                    <div class="actions"><button class="btn btn-primary" id="save-preferences"><i class="fas fa-save"></i> Save Changes</button><button class="btn btn-outline" data-reset="preferences"><i class="fas fa-undo"></i> Reset</button></div>
+                </div>
+
+                <div class="card" id="card-notifications">
+                    <h3>Notifications</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>Low Stock Alerts</label><label class="switch"><input type="checkbox" id="not_low"><span class="slider"></span></label></div>
+                        <div class="form-group"><label>Order Updates</label><label class="switch"><input type="checkbox" id="not_orders"><span class="slider"></span></label></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Weekly Summary Email</label><label class="switch"><input type="checkbox" id="not_summary"><span class="slider"></span></label></div>
+                        <div class="form-group"><label>Marketing Emails</label><label class="switch"><input type="checkbox" id="not_marketing"><span class="slider"></span></label></div>
+                    </div>
+                    <div class="actions"><button class="btn btn-primary" id="save-notifications"><i class="fas fa-save"></i> Save Changes</button><button class="btn btn-outline" data-reset="notifications"><i class="fas fa-undo"></i> Reset</button></div>
+                </div>
+
+                <div class="card" id="card-security">
+                    <h3>Security</h3>
+                    <div class="form-row">
+                        <div class="form-group"><label>Current Password</label><input type="password" id="sec_current" placeholder="••••••••"></div>
+                        <div class="form-group"><label>New Password</label><input type="password" id="sec_new" placeholder="••••••••"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Two-Factor Authentication</label><label class="switch"><input type="checkbox" id="sec_2fa"><span class="slider"></span></label></div>
+                        <div class="form-group"><label>Session Timeout (minutes)</label><select id="sec_timeout"><option>15</option><option>30</option><option>60</option></select></div>
+                    </div>
+                    <div class="actions"><button class="btn btn-primary" id="save-security"><i class="fas fa-save"></i> Update Security</button><button class="btn btn-outline" data-reset="security"><i class="fas fa-undo"></i> Reset</button></div>
+                </div>
+
+                <div class="card" id="card-warehouses">
+                    <h3>Warehouses</h3>
+                    <div class="actions" style="margin-bottom:15px;">
+                        <button class="btn btn-primary" id="add-warehouse"><i class="fas fa-plus"></i> Add Warehouse</button>
+                    </div>
+                    <div class="warehouse-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Location</th>
+                                    <th>Manager</th>
+                                    <th>Contact</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="warehouse-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card" id="card-users">
+                    <h3>Users</h3>
+                    <div class="actions" style="margin-bottom:15px;">
+                        <button class="btn btn-primary" id="add-user"><i class="fas fa-user-plus"></i> Add User</button>
+                    </div>
+                    <div class="warehouse-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Warehouses</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card" id="card-categories">
+                    <h3>Categories</h3>
+                    <div class="actions" style="margin-bottom:15px;">
+                        <button class="btn btn-primary" id="add-category"><i class="fas fa-plus"></i> Add Category</button>
+                    </div>
+                    <div class="warehouse-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="category-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Warehouse Modal -->
+    <div id="warehouse-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Warehouse</h3>
+                <button id="wm-close" style="border:none; background:transparent; font-size:18px; cursor:pointer;">✕</button>
+            </div>
+            <form id="warehouse-form" class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" id="wh_name" placeholder="e.g., North Warehouse">
+                    </div>
+                    <div class="form-group">
+                        <label>Location</label>
+                        <input type="text" id="wh_location" placeholder="e.g., 123 Warehouse Rd">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Manager</label>
+                        <input type="text" id="wh_manager" placeholder="e.g., John Doe">
+                    </div>
+                    <div class="form-group">
+                        <label>Contact</label>
+                        <input type="tel" id="wh_contact" placeholder="e.g., +1 (555) 123-4567">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="wm-cancel" class="btn btn-outline">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="wm-save"><i class="fas fa-save"></i> Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- User Modal -->
+    <div id="user-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add User</h3>
+                <button id="um-close" style="border:none; background:transparent; font-size:18px; cursor:pointer;">✕</button>
+            </div>
+            <form id="user-form" class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="u_name" placeholder="e.g., Jane Smith">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="u_email" placeholder="e.g., jane@example.com">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Role</label>
+                        <select id="u_role">
+                            <option value="admin">Admin</option>
+                            <option value="staff">Staff</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Warehouses</label>
+                        <select id="u_warehouses" multiple></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Password (required for new users)</label>
+                        <input type="password" id="u_password" placeholder="Minimum 6 characters">
+                    </div>
+                    <div class="form-group">
+                        <label>Actions</label>
+                        <div style="display:flex; gap:8px;">
+                            <button type="button" class="btn btn-outline" id="u_send_reset">Send Reset Email</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="um-cancel" class="btn btn-outline">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="um-save"><i class="fas fa-save"></i> Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Category Modal -->
+    <div id="category-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Category</h3>
+                <button id="cm-close" style="border:none; background:transparent; font-size:18px; cursor:pointer;">✕</button>
+            </div>
+            <form id="category-form" class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" id="cat_name" placeholder="e.g., Electronics">
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <input type="text" id="cat_desc" placeholder="Optional description">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="cm-cancel" class="btn btn-outline">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="cm-save"><i class="fas fa-save"></i> Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
+        import { getAuth, onAuthStateChanged, signOut, updateProfile, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+        import { getFirestore, doc, setDoc, getDoc, getDocs, collection, onSnapshot, addDoc, updateDoc, deleteDoc, query, where, serverTimestamp, setLogLevel } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+
+        (function(){
+            const defaults = {
+                account: { name: 'Admin User', email: 'admin@stockmaster.app', phone: '+1 (555) 111-2233', tz: 'Africa/Nairobi' },
+                company: { name: 'StockMaster Inc.', currency: 'TZS', address: 'Dar es Salaam', tax: 'TAX-12345' },
+                preferences: { theme: 'light', page: '20', refresh: true, tips: false },
+                notifications: { low: true, orders: true, summary: false, marketing: false },
+                security: { twofa: false, timeout: '30' }
+            };
+
+            const setHeader = (displayName, email) => {
+                const name = displayName || email || 'User';
+                const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=3498db&color=fff`;
+                const nameEl = document.getElementById('user-name');
+                const avatarEl = document.getElementById('user-avatar');
+                if (nameEl) nameEl.textContent = name;
+                if (avatarEl) avatarEl.src = avatar;
+            };
+
+            const init = async () => {
+                try {
+                    const app = initializeApp({ 
+                        apiKey: "AIzaSyAqBR_6p-5752sVeu_aMT2sNU2I_nUmaOQ", 
+                        authDomain: "inventory-3b638.firebaseapp.com", 
+                        projectId: "inventory-3b638", 
+                        storageBucket: "inventory-3b638.firebasestorage.app", 
+                        messagingSenderId: "65748912542", 
+                        appId: "1:65748912542:web:8d40510d194bb3e1d6ae8f", 
+                        measurementId: "G-6ECQLDLS71" 
+                    });
+                    const auth = getAuth(app);
+                    const db = getFirestore(app);
+                    setLogLevel('error');
+                    onAuthStateChanged(auth, async (user) => {
+                        if (!user) {
+                            window.location.href = 'login.html';
+                            return;
+                        }
+                        setHeader(user.displayName, user.email);
+                        document.getElementById('btn-logout').onclick = () => signOut(auth).then(() => window.location.href = 'login.html');
+                        await syncUserAccess(db, user);
+                        await setupSettings(db, auth, user);
+                    });
+                } catch (e) {
+                    console.error('Firebase initialization failed:', e);
+                    alert('Failed to initialize application. Please try again later.');
+                    window.location.href = 'login.html';
+                }
+            };
+
+            async function syncUserAccess(db, user) {
+                try {
+                    const meRef = doc(db, 'users', user.uid);
+                    const meSnap = await getDoc(meRef);
+                    if (!meSnap.exists()) {
+                        await setDoc(meRef, { 
+                            role: 'staff', 
+                            warehouses: [],
+                            name: user.displayName || user.email || 'User',
+                            email: user.email,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        }, { merge: true });
+                    }
+                    const role = meSnap.exists() && meSnap.data().role ? meSnap.data().role : 'staff';
+                    document.getElementById('user-role').textContent = role.charAt(0).toUpperCase() + role.slice(1);
+                } catch (e) {
+                    console.error('syncUserAccess error:', e);
+                }
+            }
+
+            async function setupSettings(db, auth, user) {
+                const settingsDoc = doc(db, `users/${user.uid}/settings`, 'profile');
+                const meSnap = await getDoc(doc(db, 'users', user.uid));
+                const isAdmin = meSnap.exists() && meSnap.data().role === 'admin';
+
+                // Load settings
+                async function loadSettings() {
+                    try {
+                        const snap = await getDoc(settingsDoc);
+                        const data = snap.exists() ? snap.data() : {};
+                        document.getElementById('acc_name').value = data.account?.name || user.displayName || defaults.account.name;
+                        document.getElementById('acc_email').value = data.account?.email || user.email || defaults.account.email;
+                        document.getElementById('acc_phone').value = data.account?.phone || user.phoneNumber || defaults.account.phone;
+                        document.getElementById('acc_tz').value = data.account?.tz || defaults.account.tz;
+                        document.getElementById('co_name').value = data.company?.name || defaults.company.name;
+                        document.getElementById('co_currency').value = data.company?.currency || defaults.company.currency;
+                        document.getElementById('co_address').value = data.company?.address || defaults.company.address;
+                        document.getElementById('co_tax').value = data.company?.tax || defaults.company.tax;
+                        document.getElementById('pref_theme').value = data.preferences?.theme || defaults.preferences.theme;
+                        document.getElementById('pref_page').value = data.preferences?.page || defaults.preferences.page;
+                        document.getElementById('pref_refresh').checked = data.preferences?.refresh ?? defaults.preferences.refresh;
+                        document.getElementById('pref_tips').checked = data.preferences?.tips ?? defaults.preferences.tips;
+                        document.getElementById('not_low').checked = data.notifications?.low ?? defaults.notifications.low;
+                        document.getElementById('not_orders').checked = data.notifications?.orders ?? defaults.notifications.orders;
+                        document.getElementById('not_summary').checked = data.notifications?.summary ?? defaults.notifications.summary;
+                        document.getElementById('not_marketing').checked = data.notifications?.marketing ?? defaults.notifications.marketing;
+                        document.getElementById('sec_2fa').checked = data.security?.twofa ?? defaults.security.twofa;
+                        document.getElementById('sec_timeout').value = data.security?.timeout || defaults.security.timeout;
+                    } catch (error) {
+                        console.error('Error loading settings:', error);
+                        alert('Failed to load settings. Using defaults.');
+                        resetSection('all');
+                    }
+                }
+
+                // Reset section
+                function resetSection(section) {
+                    if (section === 'account' || section === 'all') {
+                        document.getElementById('acc_name').value = defaults.account.name;
+                        document.getElementById('acc_email').value = defaults.account.email;
+                        document.getElementById('acc_phone').value = defaults.account.phone;
+                        document.getElementById('acc_tz').value = defaults.account.tz;
+                    }
+                    if (section === 'company' || section === 'all') {
+                        document.getElementById('co_name').value = defaults.company.name;
+                        document.getElementById('co_currency').value = defaults.company.currency;
+                        document.getElementById('co_address').value = defaults.company.address;
+                        document.getElementById('co_tax').value = defaults.company.tax;
+                    }
+                    if (section === 'preferences' || section === 'all') {
+                        document.getElementById('pref_theme').value = defaults.preferences.theme;
+                        document.getElementById('pref_page').value = defaults.preferences.page;
+                        document.getElementById('pref_refresh').checked = defaults.preferences.refresh;
+                        document.getElementById('pref_tips').checked = defaults.preferences.tips;
+                    }
+                    if (section === 'notifications' || section === 'all') {
+                        document.getElementById('not_low').checked = defaults.notifications.low;
+                        document.getElementById('not_orders').checked = defaults.notifications.orders;
+                        document.getElementById('not_summary').checked = defaults.notifications.summary;
+                        document.getElementById('not_marketing').checked = defaults.notifications.marketing;
+                    }
+                    if (section === 'security' || section === 'all') {
+                        document.getElementById('sec_current').value = '';
+                        document.getElementById('sec_new').value = '';
+                        document.getElementById('sec_2fa').checked = defaults.security.twofa;
+                        document.getElementById('sec_timeout').value = defaults.security.timeout;
+                    }
+                }
+
+                // Validate inputs
+                function validateSection(section) {
+                    if (section === 'account') {
+                        const name = document.getElementById('acc_name').value.trim();
+                        const email = document.getElementById('acc_email').value.trim();
+                        const phone = document.getElementById('acc_phone').value.trim();
+                        if (!name) return 'Full name is required.';
+                        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Invalid email format.';
+                        if (phone && !/^\+?[\d\s()-]{7,}$/.test(phone)) return 'Invalid phone number.';
+                    } else if (section === 'company') {
+                        const name = document.getElementById('co_name').value.trim();
+                        const address = document.getElementById('co_address').value.trim();
+                        if (!name) return 'Company name is required.';
+                        if (!address) return 'Address is required.';
+                    } else if (section === 'security') {
+                        const current = document.getElementById('sec_current').value;
+                        const newPass = document.getElementById('sec_new').value;
+                        if (current || newPass) {
+                            if (!current) return 'Current password is required.';
+                            if (!newPass) return 'New password is required.';
+                            if (newPass.length < 8) return 'New password must be at least 8 characters.';
+                        }
+                    }
+                    return null;
+                }
+
+                // Save settings
+                async function saveSection(section) {
+                    const error = validateSection(section);
+                    if (error) {
+                        alert(error);
+                        return;
+                    }
+                    try {
+                        const data = {};
+                        if (section === 'account') {
+                            const name = document.getElementById('acc_name').value.trim();
+                            const email = document.getElementById('acc_email').value.trim();
+                            const phone = document.getElementById('acc_phone').value.trim();
+                            const tz = document.getElementById('acc_tz').value;
+                            data.account = { name, email, phone, tz };
+                            if (name !== user.displayName) await updateProfile(user, { displayName: name });
+                            if (email !== user.email) {
+                                try {
+                                    await updateEmail(user, email);
+                                } catch (e) {
+                                    if (e?.code === 'auth/requires-recent-login') {
+                                        const currentPassword = prompt('For security, please re-enter your current password to update email:');
+                                        if (!currentPassword) throw e;
+                                        const cred = EmailAuthProvider.credential(user.email, currentPassword);
+                                        await reauthenticateWithCredential(user, cred);
+                                        await updateEmail(user, email);
+                                    } else {
+                                        throw e;
+                                    }
+                                }
+                            }
+                        } else if (section === 'company') {
+                            data.company = {
+                                name: document.getElementById('co_name').value.trim(),
+                                currency: document.getElementById('co_currency').value,
+                                address: document.getElementById('co_address').value.trim(),
+                                tax: document.getElementById('co_tax').value.trim()
+                            };
+                        } else if (section === 'preferences') {
+                            data.preferences = {
+                                theme: document.getElementById('pref_theme').value,
+                                page: document.getElementById('pref_page').value,
+                                refresh: document.getElementById('pref_refresh').checked,
+                                tips: document.getElementById('pref_tips').checked
+                            };
+                        } else if (section === 'notifications') {
+                            data.notifications = {
+                                low: document.getElementById('not_low').checked,
+                                orders: document.getElementById('not_orders').checked,
+                                summary: document.getElementById('not_summary').checked,
+                                marketing: document.getElementById('not_marketing').checked
+                            };
+                        } else if (section === 'security') {
+                            const current = document.getElementById('sec_current').value;
+                            const newPass = document.getElementById('sec_new').value;
+                            data.security = {
+                                twofa: document.getElementById('sec_2fa').checked,
+                                timeout: document.getElementById('sec_timeout').value
+                            };
+                            if (current && newPass) {
+                                try {
+                                    await updatePassword(user, newPass);
+                                } catch (e) {
+                                    if (e?.code === 'auth/requires-recent-login') {
+                                        const currentPassword = prompt('For security, please re-enter your current password to update password:');
+                                        if (!currentPassword) throw e;
+                                        const cred = EmailAuthProvider.credential(user.email, currentPassword);
+                                        await reauthenticateWithCredential(user, cred);
+                                        await updatePassword(user, newPass);
+                                    } else {
+                                        throw e;
+                                    }
+                                }
+                                document.getElementById('sec_current').value = '';
+                                document.getElementById('sec_new').value = '';
+                            }
+                        }
+                        await setDoc(settingsDoc, { ...data, updatedAt: serverTimestamp(), updatedBy: user.uid }, { merge: true });
+                        alert(`${section.charAt(0).toUpperCase() + section.slice(1)} settings saved.`);
+                    } catch (error) {
+                        console.error(`Error saving ${section} settings:`, error);
+                        alert(`Failed to save ${section} settings: ${error.message}`);
+                    }
+                }
+
+                // Warehouse management
+                const warehouseModal = document.getElementById('warehouse-modal');
+                const warehouseForm = document.getElementById('warehouse-form');
+                const warehouseTableBody = document.getElementById('warehouse-table-body');
+                const usersTableBody = document.getElementById('users-table-body');
+                const userModal = document.getElementById('user-modal');
+                const userForm = document.getElementById('user-form');
+                const categoryModal = document.getElementById('category-modal');
+                const categoryForm = document.getElementById('category-form');
+                const categoryTableBody = document.getElementById('category-table-body');
+
+                // Validate warehouse form
+                async function validateWarehouse() {
+                    const name = document.getElementById('wh_name').value.trim();
+                    const location = document.getElementById('wh_location').value.trim();
+                    if (!name) return 'Warehouse name is required.';
+                    if (!location) return 'Location is required.';
+                    const q = query(collection(db, 'warehouses'), where('name', '==', name));
+                    const snap = await getDocs(q);
+                    if (!snap.empty && (!warehouseForm.dataset.id || !snap.docs.some(d => d.id === warehouseForm.dataset.id))) {
+                        return 'Warehouse name already exists.';
+                    }
+                    return null;
+                }
+
+                // Load warehouses
+                function loadWarehouses() {
+                    const q = query(collection(db, 'warehouses'));
+                    onSnapshot(q, (snap) => {
+                        warehouseTableBody.innerHTML = snap.empty ? '<tr><td colspan="5" style="text-align:center; color:#95a5a6;">No warehouses found.</td></tr>' : '';
+                        snap.forEach(warehouseDoc => {
+                            const w = warehouseDoc.data();
+                            const tr = document.createElement('tr');
+                            tr.dataset.id = warehouseDoc.id;
+                            tr.innerHTML = `
+                                <td>${w.name || ''}</td>
+                                <td>${w.location || ''}</td>
+                                <td>${w.manager || ''}</td>
+                                <td>${w.contact || ''}</td>
+                                <td>
+                                    <button class="icon-btn btn-primary" title="Edit"><i class="fas fa-edit"></i></button>
+                                    <button class="icon-btn btn-danger" title="Delete"><i class="fas fa-trash"></i></button>
+                                </td>
+                            `;
+                            tr.querySelector('.btn-primary').onclick = () => {
+                                warehouseModal.style.display = 'flex';
+                                warehouseModal.querySelector('h3').textContent = 'Edit Warehouse';
+                                warehouseForm.dataset.id = warehouseDoc.id;
+                                document.getElementById('wh_name').value = w.name || '';
+                                document.getElementById('wh_location').value = w.location || '';
+                                document.getElementById('wh_manager').value = w.manager || '';
+                                document.getElementById('wh_contact').value = w.contact || '';
+                            };
+                            tr.querySelector('.btn-danger').onclick = async () => {
+                                if (!confirm(`Delete warehouse ${w.name}?`)) return;
+                                try {
+                                    if (!isAdmin) { alert('Only admins can delete warehouses.'); return; }
+                                    const [productsSnap, ordersSnap, usersSnap] = await Promise.all([
+                                        getDocs(query(collection(db, 'products'), where('warehouse', '==', warehouseDoc.id))),
+                                        getDocs(query(collection(db, 'orders'), where('warehouse', '==', warehouseDoc.id))),
+                                        getDocs(query(collection(db, 'users'), where('warehouses', 'array-contains', warehouseDoc.id)))
+                                    ]);
+                                    if (!productsSnap.empty || !ordersSnap.empty || !usersSnap.empty) {
+                                        alert('Cannot delete warehouse in use by products, orders, or users.');
+                                        return;
+                                    }
+                                    await deleteDoc(doc(db, 'warehouses', warehouseDoc.id));
+                                    alert(`Warehouse ${w.name} deleted.`);
+                                } catch (error) {
+                                    console.error('Error deleting warehouse:', error);
+                                    alert(`Failed to delete warehouse: ${error.message}`);
+                                }
+                            };
+                            warehouseTableBody.appendChild(tr);
+                        });
+                    }, (error) => {
+                        console.error('Error loading warehouses:', error);
+                        alert('Failed to load warehouses. Please try again.');
+                    });
+                }
+
+                // Category management
+                async function validateCategory() {
+                    const name = document.getElementById('cat_name').value.trim();
+                    if (!name) return 'Category name is required.';
+                    const q = query(collection(db, 'categories'), where('name', '==', name));
+                    const snap = await getDocs(q);
+                    if (!snap.empty && (!categoryForm.dataset.id || !snap.docs.some(d => d.id === categoryForm.dataset.id))) {
+                        return 'Category name already exists.';
+                    }
+                    return null;
+                }
+
+                function loadCategories() {
+                    const q = query(collection(db, 'categories'));
+                    onSnapshot(q, (snap) => {
+                        categoryTableBody.innerHTML = snap.empty ? '<tr><td colspan="3" style="text-align:center; color:#95a5a6;">No categories found.</td></tr>' : '';
+                        snap.forEach(categoryDoc => {
+                            const c = categoryDoc.data();
+                            const tr = document.createElement('tr');
+                            tr.dataset.id = categoryDoc.id;
+                            tr.innerHTML = `
+                                <td>${c.name || ''}</td>
+                                <td>${c.description || ''}</td>
+                                <td>
+                                    <button class="icon-btn btn-primary" title="Edit"><i class="fas fa-edit"></i></button>
+                                    <button class="icon-btn btn-danger" title="Delete"><i class="fas fa-trash"></i></button>
+                                </td>
+                            `;
+                            tr.querySelector('.btn-primary').onclick = () => {
+                                categoryModal.style.display = 'flex';
+                                categoryModal.querySelector('h3').textContent = 'Edit Category';
+                                categoryForm.dataset.id = categoryDoc.id;
+                                document.getElementById('cat_name').value = c.name || '';
+                                document.getElementById('cat_desc').value = c.description || '';
+                            };
+                            tr.querySelector('.btn-danger').onclick = async () => {
+                                if (!confirm(`Delete category ${c.name}?`)) return;
+                                try {
+                                    if (!isAdmin) { alert('Only admins can delete categories.'); return; }
+                                    const usedSnap = await getDocs(query(collection(db, 'products'), where('category', '==', c.name)));
+                                    if (!usedSnap.empty) { alert('Cannot delete category in use by products.'); return; }
+                                    await deleteDoc(doc(db, 'categories', categoryDoc.id));
+                                    alert(`Category ${c.name} deleted.`);
+                                } catch (error) {
+                                    console.error('Error deleting category:', error);
+                                    alert(`Failed to delete category: ${error.message}`);
+                                }
+                            };
+                            categoryTableBody.appendChild(tr);
+                        });
+                    }, (error) => {
+                        console.error('Error loading categories:', error);
+                        alert('Failed to load categories. Please try again.');
+                    });
+                }
+
+                categoryForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const error = await validateCategory();
+                    if (error) { alert(error); return; }
+                    try {
+                        if (!isAdmin) { alert('Only admins can manage categories.'); return; }
+                        const data = {
+                            name: document.getElementById('cat_name').value.trim(),
+                            description: document.getElementById('cat_desc').value.trim(),
+                            updatedAt: serverTimestamp(),
+                            updatedBy: user.uid
+                        };
+                        if (!categoryForm.dataset.id) {
+                            data.createdAt = serverTimestamp();
+                            data.createdBy = user.uid;
+                        }
+                        const ref = categoryForm.dataset.id ? doc(db, 'categories', categoryForm.dataset.id) : doc(collection(db, 'categories'));
+                        await setDoc(ref, data, { merge: true });
+                        alert(categoryForm.dataset.id ? 'Category updated successfully.' : 'Category added successfully.');
+                        categoryModal.style.display = 'none';
+                        categoryForm.reset();
+                        delete categoryForm.dataset.id;
+                    } catch (error) {
+                        console.error('Error saving category:', error);
+                        alert(`Failed to save category: ${error.message}`);
+                    }
+                };
+
+                document.getElementById('add-category').onclick = () => {
+                    if (!isAdmin) { alert('Only admins can add categories.'); return; }
+                    categoryModal.style.display = 'flex';
+                    categoryModal.querySelector('h3').textContent = 'Add Category';
+                    categoryForm.reset();
+                    delete categoryForm.dataset.id;
+                };
+                document.getElementById('cm-close').onclick = () => {
+                    categoryModal.style.display = 'none';
+                    categoryForm.reset();
+                    delete categoryForm.dataset.id;
+                };
+                document.getElementById('cm-cancel').onclick = () => {
+                    categoryModal.style.display = 'none';
+                    categoryForm.reset();
+                    delete categoryForm.dataset.id;
+                };
+
+                // Users management
+                async function populateWarehouseOptionsSelect() {
+                    const select = document.getElementById('u_warehouses');
+                    select.innerHTML = '';
+                    try {
+                        const snap = await getDocs(query(collection(db, 'warehouses')));
+                        if (snap.empty) {
+                            const opt = document.createElement('option');
+                            opt.value = '';
+                            opt.textContent = 'No warehouses';
+                            select.appendChild(opt);
+                        } else {
+                            snap.forEach(warehouseDoc => {
+                                const w = warehouseDoc.data();
+                                const opt = document.createElement('option');
+                                opt.value = warehouseDoc.id;
+                                opt.textContent = w.name || warehouseDoc.id;
+                                select.appendChild(opt);
+                            });
+                        }
+                    } catch (e) {
+                        console.error('Failed to load warehouses for user modal', e);
+                        alert('Failed to load warehouses for user modal.');
+                    }
+                }
+
+                function loadUsers() {
+                    const q = query(collection(db, 'users'));
+                    onSnapshot(q, (snap) => {
+                        usersTableBody.innerHTML = snap.empty ? '<tr><td colspan="5" style="text-align:center; color:#95a5a6;">No users found.</td></tr>' : '';
+                        snap.forEach(async userDoc => {
+                            const u = userDoc.data();
+                            const tr = document.createElement('tr');
+                            tr.dataset.id = userDoc.id;
+                            const warehouseNames = Array.isArray(u.warehouses) ? (await Promise.all(u.warehouses.map(async id => {
+                                const docSnap = await getDoc(doc(db, 'warehouses', id));
+                                return docSnap.exists() ? docSnap.data().name : id;
+                            }))).join(', ') : '';
+                            tr.innerHTML = `
+                                <td>${u.name || ''}</td>
+                                <td>${u.email || ''}</td>
+                                <td>${u.role || ''}</td>
+                                <td>${warehouseNames}</td>
+                                <td>
+                                    <button class="icon-btn btn-primary" title="Edit"><i class="fas fa-edit"></i></button>
+                                    <button class="icon-btn btn-danger" title="Delete"><i class="fas fa-trash"></i></button>
+                                </td>
+                            `;
+                            tr.querySelector('.btn-primary').onclick = async () => {
+                                if (!isAdmin) { alert('Only admins can edit users.'); return; }
+                                userModal.style.display = 'flex';
+                                userModal.querySelector('h3').textContent = 'Edit User';
+                                userForm.dataset.id = userDoc.id;
+                                document.getElementById('u_name').value = u.name || '';
+                                document.getElementById('u_email').value = u.email || '';
+                                document.getElementById('u_role').value = u.role || 'staff';
+                                await populateWarehouseOptionsSelect();
+                                const select = document.getElementById('u_warehouses');
+                                const values = Array.isArray(u.warehouses) ? u.warehouses : [];
+                                Array.from(select.options).forEach(o => { o.selected = values.includes(o.value); });
+                            };
+                            tr.querySelector('.btn-danger').onclick = async () => {
+                                if (!isAdmin) { alert('Only admins can delete users.'); return; }
+                                if (!confirm(`Delete user ${u.name || u.email}?`)) return;
+                                try {
+                                    await deleteDoc(doc(db, 'users', userDoc.id));
+                                    alert('User deleted.');
+                                } catch (error) {
+                                    console.error('Error deleting user:', error);
+                                    alert(`Failed to delete user: ${error.message}`);
+                                }
+                            };
+                            usersTableBody.appendChild(tr);
+                        });
+                    }, (error) => {
+                        console.error('Error loading users:', error);
+                        alert('Failed to load users. Please try again.');
+                    });
+                }
+
+                userForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const name = document.getElementById('u_name').value.trim();
+                    const email = document.getElementById('u_email').value.trim();
+                    const role = document.getElementById('u_role').value;
+                    const warehousesSel = document.getElementById('u_warehouses');
+                    const warehouses = Array.from(warehousesSel.selectedOptions).map(o => o.value).filter(Boolean);
+                    const password = document.getElementById('u_password').value;
+                    if (!name) { alert('Name is required.'); return; }
+                    if (!/^([^\s@]+)@([^\s@]+)\.[^\s@]+$/.test(email)) { alert('Valid email is required.'); return; }
+                    if (!userForm.dataset.id && !password) { alert('Password is required for new users.'); return; }
+                    if (password && password.length < 6) { alert('Password must be at least 6 characters.'); return; }
+                    try {
+                        if (!isAdmin) {
+                            alert('Only admins can create or edit users.');
+                            return;
+                        }
+                        const data = { name, email, role, warehouses, updatedAt: serverTimestamp(), updatedBy: user.uid };
+                        if (!userForm.dataset.id) {
+                            data.createdAt = serverTimestamp();
+                            data.createdBy = user.uid;
+                        }
+                        let targetDocRef;
+                        if (!userForm.dataset.id) {
+                            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                            targetDocRef = doc(db, 'users', userCredential.user.uid);
+                            await updateProfile(userCredential.user, { displayName: name });
+                        } else {
+                            targetDocRef = doc(db, 'users', userForm.dataset.id);
+                            const existingDoc = await getDoc(targetDocRef);
+                            if (existingDoc.exists() && existingDoc.data().email !== email) {
+                                await updateEmail((await getAuth().getUser(userForm.dataset.id)).user, email);
+                            }
+                        }
+                        await setDoc(targetDocRef, data, { merge: true });
+                        alert(userForm.dataset.id ? 'User updated successfully.' : 'User added successfully.');
+                        userModal.style.display = 'none';
+                        userForm.reset();
+                        delete userForm.dataset.id;
+                    } catch (error) {
+                        console.error('Error saving user:', error);
+                        let message = error.message;
+                        if (error.code === 'auth/email-already-in-use') {
+                            message = 'This email is already in use.';
+                        } else if (error.code === 'auth/invalid-email') {
+                            message = 'Invalid email format.';
+                        } else if (error.code === 'auth/requires-recent-login') {
+                            message = 'Please re-authenticate to update email.';
+                        }
+                        alert(`Failed to save user: ${message}`);
+                    }
+                };
+
+                // Send password reset email
+                document.getElementById('u_send_reset').onclick = async () => {
+                    const email = document.getElementById('u_email').value.trim();
+                    if (!/^([^\s@]+)@([^\s@]+)\.[^\s@]+$/.test(email)) { alert('Enter a valid email first.'); return; }
+                    try {
+                        await sendPasswordResetEmail(auth, email);
+                        alert('Password reset email sent.');
+                    } catch (e) {
+                        console.error('Reset email error:', e);
+                        alert(e?.message || 'Failed to send reset email');
+                    }
+                };
+
+                document.getElementById('add-user').onclick = async () => {
+                    if (!isAdmin) { alert('Only admins can add users.'); return; }
+                    userModal.style.display = 'flex';
+                    userModal.querySelector('h3').textContent = 'Add User';
+                    userForm.reset();
+                    delete userForm.dataset.id;
+                    await populateWarehouseOptionsSelect();
+                };
+                document.getElementById('um-close').onclick = () => {
+                    userModal.style.display = 'none';
+                    userForm.reset();
+                    delete userForm.dataset.id;
+                };
+                document.getElementById('um-cancel').onclick = () => {
+                    userModal.style.display = 'none';
+                    userForm.reset();
+                    delete userForm.dataset.id;
+                };
+
+                // Save warehouse
+                warehouseForm.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const error = await validateWarehouse();
+                    if (error) {
+                        alert(error);
+                        return;
+                    }
+                    try {
+                        if (!isAdmin) { alert('Only admins can manage warehouses.'); return; }
+                        const data = {
+                            name: document.getElementById('wh_name').value.trim(),
+                            location: document.getElementById('wh_location').value.trim(),
+                            manager: document.getElementById('wh_manager').value.trim(),
+                            contact: document.getElementById('wh_contact').value.trim(),
+                            updatedAt: serverTimestamp(),
+                            updatedBy: user.uid
+                        };
+                        if (!warehouseForm.dataset.id) {
+                            data.createdAt = serverTimestamp();
+                            data.createdBy = user.uid;
+                        }
+                        const ref = warehouseForm.dataset.id ? doc(db, 'warehouses', warehouseForm.dataset.id) : doc(collection(db, 'warehouses'));
+                        await setDoc(ref, data, { merge: true });
+                        alert(warehouseForm.dataset.id ? 'Warehouse updated successfully.' : 'Warehouse added successfully.');
+                        warehouseModal.style.display = 'none';
+                        warehouseForm.reset();
+                        delete warehouseForm.dataset.id;
+                    } catch (error) {
+                        console.error('Error saving warehouse:', error);
+                        alert(`Failed to save warehouse: ${error.message}`);
+                    }
+                };
+
+                // Modal controls
+                document.getElementById('add-warehouse').onclick = () => {
+                    if (!isAdmin) { alert('Only admins can add warehouses.'); return; }
+                    warehouseModal.style.display = 'flex';
+                    warehouseModal.querySelector('h3').textContent = 'Add Warehouse';
+                    warehouseForm.reset();
+                    delete warehouseForm.dataset.id;
+                };
+                document.getElementById('wm-close').onclick = () => {
+                    warehouseModal.style.display = 'none';
+                    warehouseForm.reset();
+                    delete warehouseForm.dataset.id;
+                };
+                document.getElementById('wm-cancel').onclick = () => {
+                    warehouseModal.style.display = 'none';
+                    warehouseForm.reset();
+                    delete warehouseForm.dataset.id;
+                };
+
+                // Bind save and reset buttons
+                document.getElementById('save-account').onclick = () => saveSection('account');
+                document.getElementById('save-company').onclick = () => saveSection('company');
+                document.getElementById('save-preferences').onclick = () => saveSection('preferences');
+                document.getElementById('save-notifications').onclick = () => saveSection('notifications');
+                document.getElementById('save-security').onclick = () => saveSection('security');
+                document.querySelectorAll('.btn.btn-outline').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const section = btn.dataset.reset;
+                        resetSection(section);
+                        alert(`Section ${section} reset to defaults.`);
+                    });
+                });
+
+                // Search filter
+                document.getElementById('search').addEventListener('input', (e) => {
+                    const search = e.target.value.toLowerCase();
+                    document.querySelectorAll('.card').forEach(card => {
+                        const title = card.querySelector('h3').textContent.toLowerCase();
+                        card.style.display = search ? title.includes(search) ? '' : 'none' : '';
+                    });
+                });
+
+                // Menu navigation
+                document.querySelectorAll('.menu-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const href = item.dataset.href;
+                        if (href) window.location.href = href;
+                    });
+                });
+
+                // Initialize
+                loadSettings();
+                loadWarehouses();
+                loadUsers();
+                loadCategories();
+            }
+
+            init();
+        })();
+    </script>
+</body>
+</html>

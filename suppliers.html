@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suppliers - StockMaster</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --primary:#2c3e50; --secondary:#3498db; --accent:#e74c3c; --light:#ecf0f1; --dark:#2c3e50; --success:#2ecc71; --warning:#f39c12; --danger:#e74c3c; --gray:#95a5a6; }
+        *{ margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body{ background:#f5f7fa; color:#333; line-height:1.6; }
+        .container{ display:grid; grid-template-columns:250px 1fr; min-height:100vh; }
+        .sidebar{ background:var(--primary); color:#fff; padding:20px 0; position:fixed; width:250px; height:100vh; overflow-y:auto; }
+        .logo{ text-align:center; padding:20px 0; border-bottom:1px solid rgba(255,255,255,.1); margin-bottom:20px; }
+        .logo h1{ font-size:24px; font-weight:600; }
+        .logo span{ color:var(--secondary); }
+        .menu-item{ padding:15px 25px; display:flex; align-items:center; cursor:pointer; transition:all .3s; }
+        .menu-item:hover, .menu-item.active{ background:rgba(255,255,255,.1); border-left:4px solid var(--secondary); }
+        .menu-item i{ margin-right:15px; font-size:18px; }
+        .main-content{ grid-column:2; padding:20px; }
+        .header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:30px; background:#fff; padding:15px 20px; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.05); }
+        .search-bar{ display:flex; align-items:center; background:#f5f7fa; border-radius:4px; padding:8px 15px; width:300px; }
+        .search-bar input{ border:none; background:transparent; width:100%; padding:5px; outline:none; }
+        .user-profile{ display:flex; align-items:center; }
+        .user-profile img{ width:40px; height:40px; border-radius:50%; margin-right:10px; object-fit:cover; }
+        .page-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+        .page-title{ font-size:24px; font-weight:600; color:var(--dark); }
+        .action-buttons{ display:flex; gap:10px; }
+        .btn{ padding:10px 15px; border-radius:4px; border:none; cursor:pointer; font-weight:500; display:flex; align-items:center; gap:8px; transition:all .3s; }
+        .btn-primary{ background:var(--secondary); color:#fff; }
+        .btn-success{ background:var(--success); color:#fff; }
+        .btn-danger{ background:var(--danger); color:#fff; }
+        .filters{ background:#fff; border-radius:8px; padding:15px 20px; margin-bottom:20px; box-shadow:0 2px 10px rgba(0,0,0,.05); display:flex; flex-wrap:wrap; gap:15px; align-items:center; }
+        .filter-group{ display:flex; flex-direction:column; gap:5px; }
+        .filter-group label{ font-size:12px; color:var(--gray); }
+        .filter-group select, .filter-group input{ padding:8px 10px; border:1px solid #ddd; border-radius:4px; min-width:150px; }
+        .suppliers-table{ background:#fff; border-radius:8px; padding:20px; box-shadow:0 2px 10px rgba(0,0,0,.05); overflow-x:auto; }
+        table{ width:100%; border-collapse:collapse; }
+        th, td{ padding:15px; text-align:left; border-bottom:1px solid #eee; }
+        th{ font-weight:600; color:var(--gray); background:#f9f9f9; }
+        .status{ padding:5px 10px; border-radius:20px; font-size:12px; font-weight:500; }
+        .status.active{ background:rgba(46,204,113,.2); color:var(--success); }
+        .status.inactive{ background:rgba(231,76,60,.2); color:var(--danger); }
+        .icon-btn{ padding:6px; border-radius:4px; cursor:pointer; border:none; color:#fff; display:inline-flex; align-items:center; justify-content:center; }
+        .btn-edit{ background:var(--secondary); }
+        .btn-delete{ background:var(--danger); }
+        .btn-contact{ background:var(--success); }
+        @media (max-width: 992px){ .container{ grid-template-columns:1fr; } .sidebar{ display:none; } .main-content{ grid-column:1; } }
+        @media (max-width: 768px){ .header{ flex-direction:column; align-items:flex-start; } .search-bar{ width:100%; margin-bottom:15px; } .page-header{ flex-direction:column; align-items:flex-start; gap:15px; } .action-buttons{ width:100%; justify-content:space-between; } .btn{ flex:1; justify-content:center; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="logo">
+                <h1>Stock<span>Master</span></h1>
+            </div>
+            <div class="menu-item" data-href="index.html"><i class="fas fa-home"></i><span>Dashboard</span></div>
+            <div class="menu-item" data-href="products.html"><i class="fas fa-boxes"></i><span>Products</span></div>
+            <div class="menu-item" data-href="inventory.html"><i class="fas fa-warehouse"></i><span>Inventory</span></div>
+            <div class="menu-item" data-href="orders.html"><i class="fas fa-file-invoice-dollar"></i><span>Orders</span></div>
+            <div class="menu-item" data-href="transfers.html"><i class="fas fa-exchange-alt"></i><span>Transfers</span></div>
+            <div class="menu-item" data-href="reports.html"><i class="fas fa-chart-bar"></i><span>Reports</span></div>
+            <div class="menu-item active" data-href="suppliers.html"><i class="fas fa-users"></i><span>Suppliers</span></div>
+            <div class="menu-item" data-href="settings.html"><i class="fas fa-cog"></i><span>Settings</span></div>
+            <div class="menu-item" data-href="help.html"><i class="fas fa-question-circle"></i><span>Help & Support</span></div>
+        </div>
+        <div class="main-content">
+            <div class="header">
+                <div class="search-bar">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Search suppliers...">
+                </div>
+                <div class="user-profile" id="user-profile">
+                    <div style="margin-right:10px;">
+                        <div id="user-name">User</div>
+                        <small id="user-role">Authenticated</small>
+                    </div>
+                    <button id="btn-logout" class="btn" style="background:#fff; color:#e74c3c; border:1px solid #e74c3c; padding:8px 10px;">
+                        <i class="fas fa-right-from-bracket"></i> Logout
+                    </button>
+                </div>
+            </div>
+
+            <div class="page-header">
+                <h2 class="page-title">Suppliers</h2>
+                <div class="action-buttons">
+                    <button class="btn btn-primary" id="btn-add-supplier"><i class="fas fa-plus"></i> Add Supplier</button>
+                    <button class="btn btn-success" id="btn-export"><i class="fas fa-file-export"></i> Export</button>
+                </div>
+            </div>
+
+            <div class="filters">
+                <div class="filter-group">
+                    <label for="status">Status</label>
+                    <select id="status">
+                        <option value="">All</option>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="category">Category</label>
+                    <select id="category">
+                        <option value="">All</option>
+                        <option value="electronics">Electronics</option>
+                        <option value="kitchen">Home & Kitchen</option>
+                        <option value="fitness">Fitness</option>
+                        <option value="office">Home Office</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="search">Search</label>
+                    <input type="text" id="search" placeholder="Name, email, phone...">
+                </div>
+            </div>
+
+            <div class="suppliers-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="suppliers-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supplier Modal -->
+    <div id="supplier-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); align-items:center; justify-content:center; z-index:1000;">
+        <div style="background:#fff; width:520px; max-width:90vw; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,.2);">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid #eee;">
+                <h3 style="font-size:18px;">Supplier</h3>
+                <button id="sm-close" style="border:none; background:transparent; font-size:18px; cursor:pointer;">✕</button>
+            </div>
+            <form id="supplier-form" style="padding:16px 18px;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div>
+                        <label style="font-size:12px; color:#95a5a6;">Name</label>
+                        <input type="text" id="sf_name" placeholder="Supplier name" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
+                    </div>
+                    <div>
+                        <label style="font-size:12px; color:#95a5a6;">Category</label>
+                        <input type="text" id="sf_category" placeholder="Category" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
+                    </div>
+                    <div>
+                        <label style="font-size:12px; color:#95a5a6;">Email</label>
+                        <input type="email" id="sf_email" placeholder="email@example.com" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
+                    </div>
+                    <div>
+                        <label style="font-size:12px; color:#95a5a6;">Phone</label>
+                        <input type="text" id="sf_phone" placeholder="+255 ..." style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
+                    </div>
+                    <div>
+                        <label style="font-size:12px; color:#95a5a6;">Status</label>
+                        <select id="sf_status" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px;">
+                    <button type="button" id="sm-cancel" class="btn" style="background:#fff; color:#3498db; border:1px solid #3498db;">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="sm-save">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
+        import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+        import { getFirestore, doc, getDoc, setDoc, collection, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+
+        (function(){
+            const setHeader = (displayName, email) => {
+                const name = displayName || email || 'User';
+                const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=3498db&color=fff`;
+                const nameEl = document.getElementById('user-name');
+                const avatarEl = document.getElementById('user-avatar');
+                if (nameEl) nameEl.textContent = name;
+                if (avatarEl) avatarEl.src = avatar;
+            };
+            const init = async () => {
+                try {
+                    const app = initializeApp({ 
+                        apiKey: "AIzaSyAqBR_6p-5752sVeu_aMT2sNU2I_nUmaOQ", 
+                        authDomain: "inventory-3b638.firebaseapp.com", 
+                        projectId: "inventory-3b638", 
+                        storageBucket: "inventory-3b638.firebasestorage.app", 
+                        messagingSenderId: "65748912542", 
+                        appId: "1:65748912542:web:8d40510d194bb3e1d6ae8f", 
+                        measurementId: "G-6ECQLDLS71" 
+                    });
+                    const auth = getAuth(app);
+                    const db = getFirestore(app);
+                    onAuthStateChanged(auth, async (user) => {
+                        if (!user) { window.location.href = 'login.html'; return; }
+                        setHeader(user.displayName, user.email);
+                        const btn = document.getElementById('btn-logout');
+                        if (btn) btn.onclick = () => signOut(auth).then(() => window.location.href = 'login.html');
+                        await syncUserAccess(db, user);
+                        setupSuppliers(db, user);
+                    });
+                } catch (e) { 
+                    console.error('Firebase init failed:', e);
+                    window.location.href = 'login.html'; 
+                }
+            };
+
+            async function syncUserAccess(db, user) {
+                try {
+                    const meRef = doc(db, 'users', user.uid);
+                    const meSnap = await getDoc(meRef);
+                    if (!meSnap.exists()) {
+                        await setDoc(meRef, { 
+                            role: 'staff', 
+                            warehouses: [],
+                            name: user.displayName || user.email || 'User',
+                            email: user.email,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        }, { merge: true });
+                    }
+                } catch (e) {
+                    console.error('syncUserAccess error:', e);
+                }
+            }
+
+            function setupSuppliers(db, user) {
+                const tbody = document.getElementById('suppliers-body');
+                const statusFilter = document.getElementById('status');
+                const categoryFilter = document.getElementById('category');
+                const searchInput = document.getElementById('search');
+                const modal = document.getElementById('supplier-modal');
+                const form = document.getElementById('supplier-form');
+                const inputs = {
+                    name: document.getElementById('sf_name'),
+                    category: document.getElementById('sf_category'),
+                    email: document.getElementById('sf_email'),
+                    phone: document.getElementById('sf_phone'),
+                    status: document.getElementById('sf_status')
+                };
+                let suppliers = [];
+                let editingId = null;
+
+                const colRef = collection(db, 'suppliers');
+                const qy = query(colRef, orderBy('name'));
+                onSnapshot(qy, (snap) => {
+                    suppliers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    renderTable();
+                }, (error) => {
+                    console.error('Error loading suppliers:', error);
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#e74c3c;">Failed to load suppliers.</td></tr>';
+                });
+
+                function renderTable() {
+                    const s = (statusFilter.value || '').toLowerCase();
+                    const c = (categoryFilter.value || '').toLowerCase();
+                    const q = (searchInput.value || '').toLowerCase();
+                    const rows = suppliers.filter(sup => {
+                        const status = (sup.status || 'active').toLowerCase();
+                        const category = (sup.category || '').toLowerCase();
+                        const name = (sup.name || '').toLowerCase();
+                        const email = (sup.email || '').toLowerCase();
+                        const phone = (sup.phone || '').toLowerCase();
+                        if (s && s !== status) return false;
+                        if (c && !category.includes(c)) return false;
+                        if (q && !(name.includes(q) || email.includes(q) || phone.includes(q))) return false;
+                        return true;
+                    });
+                    if (!rows.length) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#95a5a6;">No suppliers found.</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = '';
+                    rows.forEach(sup => {
+                        const tr = document.createElement('tr');
+                        tr.dataset.id = sup.id;
+                        tr.innerHTML = `
+                            <td>${sup.name || ''}</td>
+                            <td>${sup.category || ''}</td>
+                            <td>${sup.email || ''}</td>
+                            <td>${sup.phone || ''}</td>
+                            <td><span class="status ${(sup.status || 'active') === 'active' ? 'active' : 'inactive'}">${(sup.status || 'active') === 'active' ? 'Active' : 'Inactive'}</span></td>
+                            <td>
+                                <button class="icon-btn btn-contact" title="Contact"><i class="fas fa-envelope"></i></button>
+                                <button class="icon-btn btn-edit" title="Edit"><i class="fas fa-edit"></i></button>
+                                <button class="icon-btn btn-delete" title="Delete"><i class="fas fa-trash"></i></button>
+                            </td>
+                        `;
+                        bindRow(tr, sup);
+                        tbody.appendChild(tr);
+                    });
+                }
+
+                function bindRow(tr, sup) {
+                    tr.querySelector('.btn-contact').onclick = () => {
+                        alert(`Contacting ${sup.name || ''} (${sup.email || ''})`);
+                    };
+                    tr.querySelector('.btn-edit').onclick = () => {
+                        editingId = sup.id;
+                        openModal('Edit Supplier', sup);
+                    };
+                    tr.querySelector('.btn-delete').onclick = async () => {
+                        if (!confirm(`Delete ${sup.name || 'this supplier'}?`)) return;
+                        try {
+                            await deleteDoc(doc(db, 'suppliers', sup.id));
+                            alert('Supplier deleted.');
+                        } catch (e) {
+                            console.error('Delete supplier error:', e);
+                            alert('Failed to delete supplier. Please try again.');
+                        }
+                    };
+                }
+
+                function openModal(title, data = {}) {
+                    modal.querySelector('h3').textContent = title;
+                    inputs.name.value = data.name || '';
+                    inputs.category.value = data.category || '';
+                    inputs.email.value = data.email || '';
+                    inputs.phone.value = data.phone || '';
+                    inputs.status.value = data.status || 'active';
+                    modal.style.display = 'flex';
+                }
+
+                function closeModal() {
+                    modal.style.display = 'none';
+                    form.reset();
+                    editingId = null;
+                }
+
+                document.getElementById('sm-close').onclick = closeModal;
+                document.getElementById('sm-cancel').onclick = closeModal;
+                document.getElementById('btn-add-supplier').onclick = () => {
+                    editingId = null;
+                    openModal('Add Supplier');
+                };
+
+                function readForm() {
+                    return {
+                        name: inputs.name.value.trim(),
+                        category: inputs.category.value.trim(),
+                        email: inputs.email.value.trim(),
+                        phone: inputs.phone.value.trim(),
+                        status: inputs.status.value || 'active'
+                    };
+                }
+
+                function validate(data) {
+                    if (!data.name) { alert('Name is required.'); return false; }
+                    if (!data.email) { alert('Email is required.'); return false; }
+                    return true;
+                }
+
+                form.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const data = readForm();
+                    if (!validate(data)) return;
+                    try {
+                        if (editingId) {
+                            await updateDoc(doc(db, 'suppliers', editingId), {
+                                ...data,
+                                updatedAt: serverTimestamp(),
+                                updatedBy: user.uid
+                            });
+                            alert('Supplier updated.');
+                        } else {
+                            await addDoc(colRef, {
+                                ...data,
+                                createdAt: serverTimestamp(),
+                                createdBy: user.uid
+                            });
+                            alert('Supplier added.');
+                        }
+                        closeModal();
+                    } catch (e) {
+                        console.error('Save supplier error:', e);
+                        alert('Failed to save supplier. Please try again.');
+                    }
+                };
+
+                document.getElementById('btn-export').onclick = async () => {
+                    try {
+                        if (!suppliers.length) {
+                            alert('No suppliers to export.');
+                            return;
+                        }
+                        const headers = ['Name', 'Category', 'Email', 'Phone', 'Status'];
+                        const rows = suppliers.map(sup => [
+                            sup.name || '',
+                            sup.category || '',
+                            sup.email || '',
+                            sup.phone || '',
+                            sup.status || 'active'
+                        ]);
+                        const csv = [headers, ...rows].map(row => row.map(cell => {
+                            const text = String(cell ?? '').replace(/\s+/g, ' ').trim();
+                            return (text.includes(',') || text.includes('"')) ? `"${text.replace(/"/g, '""')}"` : text;
+                        }).join(',')).join('\n');
+                        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `suppliers_${new Date().toISOString().split('T')[0]}.csv`;
+                        a.style.display = 'none';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        alert('Suppliers exported.');
+                    } catch (e) {
+                        console.error('Export suppliers error:', e);
+                        alert('Failed to export suppliers. Please try again.');
+                    }
+                };
+
+                [statusFilter, categoryFilter, searchInput].forEach(el => {
+                    el.addEventListener('change', renderTable);
+                });
+                searchInput.addEventListener('keyup', renderTable);
+            }
+
+            init();
+        })();
+
+        document.addEventListener('DOMContentLoaded', function(){
+            const menuItems = document.querySelectorAll('.menu-item');
+            menuItems.forEach(item => item.addEventListener('click', function(){
+                const href = this.dataset.href; if (href){ window.location.href = href; return; }
+                menuItems.forEach(i => i.classList.remove('active')); this.classList.add('active');
+            }));
+        });
+    </script>
+</body>
+</html>
+
