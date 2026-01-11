@@ -289,6 +289,23 @@
             overflow-x: auto;
         }
         
+        .status-badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .status-draft {
+            background: #f1c40f;
+            color: #000;
+        }
+        
+        .status-confirmed {
+            background: #2ecc71;
+            color: white;
+        }
+        
         @media (max-width: 992px) {
             .container {
                 flex-direction: column;
@@ -499,7 +516,7 @@
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
         import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp, query, orderBy, where, runTransaction, getDocs, setDoc, setLogLevel } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp, query, orderBy, where, runTransaction, getDocs, getDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 
         (function(){
             const setHeader = (displayName, email) => {
@@ -524,7 +541,6 @@
                     });
                     const auth = getAuth(app);
                     const db = getFirestore(app);
-                    setLogLevel('error');
                     onAuthStateChanged(auth, async (user) => {
                         if (!user) {
                             window.location.href = 'login.html';
@@ -533,8 +549,7 @@
                         setHeader(user.displayName, user.email);
                         document.getElementById('btn-logout').onclick = () => signOut(auth).then(() => window.location.href = 'login.html');
                         await syncUserAccess(db, user);
-                        const currency = await loadCompanyCurrency(db, user);
-                        setupTransfers(db, user, currency);
+                        setupTransfers(db, user);
                     });
                 } catch (e) {
                     console.error('Firebase initialization failed:', e);
@@ -546,7 +561,6 @@
             async function syncUserAccess(db, user) {
                 try {
                     const meRef = doc(db, 'users', user.uid);
-                    const { getDoc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js');
                     const meSnap = await getDoc(meRef);
                     if (!meSnap.exists()) {
                         await setDoc(meRef, { 
@@ -556,28 +570,14 @@
                             email: user.email,
                             createdAt: new Date(),
                             updatedAt: new Date()
-                        }, { merge: true });
+                        });
                     }
                 } catch (e) {
                     console.error('syncUserAccess error:', e);
                 }
             }
 
-            async function loadCompanyCurrency(db, user) {
-                try {
-                    const ref = doc(db, `users/${user.uid}/settings`, 'profile');
-                    const { getDoc } = await import('https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js');
-                    const snap = await getDoc(ref);
-                    return snap.exists() ? (snap.data().company?.currency || 'USD') : 'USD';
-                } catch { return 'USD'; }
-            }
-
-            function currencySymbol(code) {
-                const map = { USD: '$', EUR: '€', GBP: '£', INR: '₹', TZS: 'TSh', KES: 'KSh', UGX: 'USh' };
-                return map[code] || code + ' ';
-            }
-
-            async function setupTransfers(db, user, currencyCode) {
+            async function setupTransfers(db, user) {
                 const tableBody = document.querySelector('#items-table tbody');
                 const draftsList = document.getElementById('drafts-list');
                 const confirmedList = document.getElementById('confirmed-list');
@@ -625,7 +625,7 @@
                     return `TRF-${year}-${String(lastNum + 1).padStart(4, '0')}`;
                 }
 
-                // Load products for dropdown (optionally filtered by a warehouse)
+                // Load products for dropdown
                 function loadProducts(warehouse = '') {
                     let qy = query(collection(db, 'products'), orderBy('name'));
                     if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
@@ -818,21 +818,26 @@
                         const docs = snap.docs
                             .map(d => ({ id: d.id, ...d.data() }))
                             .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-                        draftsList.innerHTML = docs.length ? '' : '<div style="color:#95a5a6;">No drafts yet.</div>';
+                        draftsList.innerHTML = docs.length ? '' : '<div style="color:#95a5a6; padding:10px;">No drafts yet.</div>';
                         docs.forEach(t => {
                             const wrap = document.createElement('div');
                             wrap.style.display = 'flex';
                             wrap.style.alignItems = 'center';
                             wrap.style.justifyContent = 'space-between';
-                            wrap.style.padding = '10px 0';
+                            wrap.style.padding = '12px';
                             wrap.style.borderBottom = '1px solid #eee';
                             const when = t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000).toLocaleString() : '';
                             wrap.innerHTML = `
-                                <div>
-                                    <div style="font-weight:600;">${t.number}</div>
-                                    <div style="font-size:12px; color:#95a5a6;">${t.from} → ${t.to} • ${t.items.length} items • ${when}</div>
+                                <div style="flex:1;">
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <span style="font-weight:600;">${t.number}</span>
+                                        <span class="status-badge status-draft">Draft</span>
+                                    </div>
+                                    <div style="font-size:12px; color:#95a5a6; margin-top:4px;">
+                                        ${t.from} → ${t.to} • ${t.items.length} items • ${when}
+                                    </div>
                                 </div>
-                                <div style="display:flex; gap:8px;">
+                                <div style="display:flex; gap:8px; flex-shrink:0;">
                                     <button class="btn btn-primary btn-small" data-action="load">Load</button>
                                     <button class="btn btn-success btn-small" data-action="confirm">Confirm</button>
                                     <button class="btn btn-danger btn-small" data-action="delete">Delete</button>
@@ -845,7 +850,7 @@
                         });
                     }, (error) => {
                         console.error('Error loading drafts:', error);
-                        alert('Failed to load drafts. Please try again.');
+                        draftsList.innerHTML = '<div style="color:#e74c3c; padding:10px;">Failed to load drafts</div>';
                     });
 
                     let confirmedQ = query(collection(db, 'transfers'), where('status', '==', 'confirmed'));
@@ -856,21 +861,26 @@
                         const docs = snap.docs
                             .map(d => ({ id: d.id, ...d.data() }))
                             .sort((a, b) => (b.confirmedAt?.seconds || 0) - (a.confirmedAt?.seconds || 0));
-                        confirmedList.innerHTML = docs.length ? '' : '<div style="color:#95a5a6;">No confirmed transfers yet.</div>';
+                        confirmedList.innerHTML = docs.length ? '' : '<div style="color:#95a5a6; padding:10px;">No confirmed transfers yet.</div>';
                         docs.forEach(t => {
                             const wrap = document.createElement('div');
                             wrap.style.display = 'flex';
                             wrap.style.alignItems = 'center';
                             wrap.style.justifyContent = 'space-between';
-                            wrap.style.padding = '10px 0';
+                            wrap.style.padding = '12px';
                             wrap.style.borderBottom = '1px solid #eee';
                             const when = t.confirmedAt?.seconds ? new Date(t.confirmedAt.seconds * 1000).toLocaleString() : '';
                             wrap.innerHTML = `
-                                <div>
-                                    <div style="font-weight:600;">${t.number}</div>
-                                    <div style="font-size:12px; color:#95a5a6;">${t.from} → ${t.to} • ${t.items.length} items • ${when}</div>
+                                <div style="flex:1;">
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <span style="font-weight:600;">${t.number}</span>
+                                        <span class="status-badge status-confirmed">Confirmed</span>
+                                    </div>
+                                    <div style="font-size:12px; color:#95a5a6; margin-top:4px;">
+                                        ${t.from} → ${t.to} • ${t.items.length} items • ${when}
+                                    </div>
                                 </div>
-                                <div style="display:flex; gap:8px;">
+                                <div style="display:flex; gap:8px; flex-shrink:0;">
                                     <button class="btn btn-primary btn-small" data-action="view">View</button>
                                 </div>
                             `;
@@ -882,7 +892,7 @@
                         });
                     }, (error) => {
                         console.error('Error loading confirmed transfers:', error);
-                        alert('Failed to load confirmed transfers. Please try again.');
+                        confirmedList.innerHTML = '<div style="color:#e74c3c; padding:10px;">Failed to load confirmed transfers</div>';
                     });
                 }
 
@@ -898,39 +908,90 @@
                     recalc();
                 }
 
-                // Confirm draft
+                // Confirm draft - FIXED VERSION
                 async function confirmDraft(id, t) {
+                    if (!confirm(`Confirm transfer ${t.number}? This will update stock levels.`)) return;
+                    
                     try {
+                        // First, validate all products exist and have enough stock
+                        const productRefs = t.items.map(item => doc(db, 'products', item.productId));
+                        const productDocs = await Promise.all(productRefs.map(ref => getDoc(ref)));
+                        
+                        // Validate before transaction
+                        for (let i = 0; i < t.items.length; i++) {
+                            const item = t.items[i];
+                            const productDoc = productDocs[i];
+                            if (!productDoc.exists()) {
+                                throw new Error(`Product ${item.name || item.productId} not found.`);
+                            }
+                            const product = productDoc.data();
+                            if (product.warehouse !== t.from) {
+                                throw new Error(`Product ${item.name || item.productId} is not in warehouse ${t.from}.`);
+                            }
+                            if (item.qty > (product.stock || 0)) {
+                                throw new Error(`Insufficient stock for ${item.name || item.productId}. Available: ${product.stock || 0}, Requested: ${item.qty}`);
+                            }
+                        }
+                        
+                        // Get destination products in a batch
+                        const skus = t.items.map(item => {
+                            const productDoc = productDocs.find(doc => doc.id === item.productId);
+                            return productDoc?.data()?.sku || '';
+                        }).filter(sku => sku);
+                        
+                        const destProductQueries = skus.map(sku => 
+                            query(collection(db, 'products'), where('sku', '==', sku), where('warehouse', '==', t.to))
+                        );
+                        
+                        const destSnapshots = await Promise.all(destProductQueries.map(q => getDocs(q)));
+                        
+                        // Now execute transaction
                         await runTransaction(db, async (transaction) => {
                             const transferRef = doc(db, 'transfers', id);
                             const transferDoc = await transaction.get(transferRef);
-                            if (!transferDoc.exists()) throw new Error('Transfer not found.');
-                            for (const item of t.items) {
-                                const productRef = doc(db, 'products', item.productId);
-                                const productDoc = await transaction.get(productRef);
-                                if (!productDoc.exists()) throw new Error(`Product ${item.name} not found.`);
+                            
+                            if (!transferDoc.exists()) {
+                                throw new Error('Transfer not found.');
+                            }
+                            
+                            if (transferDoc.data().status === 'confirmed') {
+                                throw new Error('Transfer is already confirmed.');
+                            }
+                            
+                            // Update source products
+                            for (let i = 0; i < t.items.length; i++) {
+                                const item = t.items[i];
+                                const productDoc = productDocs[i];
                                 const product = productDoc.data();
-                                if (product.warehouse !== t.from) throw new Error(`Product ${item.name} is not in warehouse ${t.from}.`);
-                                if (item.qty > (product.stock || 0)) throw new Error(`Insufficient stock for ${item.name}.`);
-                                // Update source product
-                                transaction.update(productRef, {
-                                    stock: (product.stock || 0) - item.qty,
-                                    status: (product.stock - item.qty) === 0 ? 'out-of-stock' : (product.stock - item.qty) < 20 ? 'low-stock' : 'in-stock',
+                                const newStock = (product.stock || 0) - item.qty;
+                                
+                                transaction.update(productDoc.ref, {
+                                    stock: newStock,
+                                    status: newStock === 0 ? 'out-of-stock' : newStock < 20 ? 'low-stock' : 'in-stock',
                                     updatedAt: serverTimestamp(),
                                     updatedBy: user.uid
                                 });
-                                // Find or create destination product
-                                const destProductQ = query(collection(db, 'products'), where('sku', '==', product.sku));
-                                const destSnap = await getDocs(destProductQ);
-                                const destFiltered = destSnap.docs.filter(d => (d.data().warehouse || '') === t.to);
-                                let destProductRef;
-                                if (destFiltered.length === 0) {
-                                    destProductRef = doc(collection(db, 'products'));
-                                    transaction.set(destProductRef, {
+                                
+                                // Handle destination product
+                                const destProducts = destSnapshots[i]?.docs || [];
+                                if (destProducts.length > 0) {
+                                    // Update existing destination product
+                                    const destProduct = destProducts[0];
+                                    const destStock = (destProduct.data().stock || 0) + item.qty;
+                                    transaction.update(destProduct.ref, {
+                                        stock: destStock,
+                                        status: destStock < 20 ? 'low-stock' : 'in-stock',
+                                        updatedAt: serverTimestamp(),
+                                        updatedBy: user.uid
+                                    });
+                                } else {
+                                    // Create new destination product
+                                    const newProductRef = doc(collection(db, 'products'));
+                                    transaction.set(newProductRef, {
                                         name: product.name,
                                         sku: product.sku,
-                                        category: product.category,
-                                        price: product.price,
+                                        category: product.category || 'Uncategorized',
+                                        price: product.price || 0,
                                         stock: item.qty,
                                         status: item.qty < 20 ? 'low-stock' : 'in-stock',
                                         warehouse: t.to,
@@ -939,17 +1000,10 @@
                                         updatedAt: serverTimestamp(),
                                         updatedBy: user.uid
                                     });
-                                } else {
-                                    destProductRef = destFiltered[0].ref;
-                                    const destProduct = destFiltered[0].data();
-                                    transaction.update(destProductRef, {
-                                        stock: (destProduct.stock || 0) + item.qty,
-                                        status: ((destProduct.stock || 0) + item.qty) < 20 ? 'low-stock' : 'in-stock',
-                                        updatedAt: serverTimestamp(),
-                                        updatedBy: user.uid
-                                    });
                                 }
                             }
+                            
+                            // Update transfer status
                             transaction.update(transferRef, {
                                 status: 'confirmed',
                                 confirmedAt: serverTimestamp(),
@@ -957,8 +1011,8 @@
                                 updatedBy: user.uid
                             });
                         });
-                        alert(`Transfer ${t.number} confirmed.`);
-                        resetForm();
+                        
+                        alert(`Transfer ${t.number} confirmed successfully.`);
                     } catch (error) {
                         console.error('Error confirming transfer:', error);
                         alert(`Failed to confirm transfer: ${error.message}`);
@@ -1010,40 +1064,83 @@
                     }
                 };
 
-                // Submit transfer
+                // Submit transfer - FIXED VERSION
                 document.getElementById('btn-submit').onclick = async () => {
                     if (!validateForm()) return;
                     const payload = serializeTransfer();
                     if (!payload) return;
+                    
+                    if (!confirm(`Submit transfer ${payload.number}? This will immediately update stock levels.`)) return;
+                    
                     try {
+                        // Pre-read all required data
+                        const productRefs = payload.items.map(item => doc(db, 'products', item.productId));
+                        const productDocs = await Promise.all(productRefs.map(ref => getDoc(ref)));
+                        
+                        // Validate before transaction
+                        for (let i = 0; i < payload.items.length; i++) {
+                            const item = payload.items[i];
+                            const productDoc = productDocs[i];
+                            if (!productDoc.exists()) {
+                                throw new Error(`Product ${item.name || item.productId} not found.`);
+                            }
+                            const product = productDoc.data();
+                            if (product.warehouse !== payload.from) {
+                                throw new Error(`Product ${item.name || item.productId} is not in warehouse ${payload.from}.`);
+                            }
+                            if (item.qty > (product.stock || 0)) {
+                                throw new Error(`Insufficient stock for ${item.name || item.productId}. Available: ${product.stock || 0}, Requested: ${item.qty}`);
+                            }
+                        }
+                        
+                        // Get destination products
+                        const skus = payload.items.map(item => {
+                            const productDoc = productDocs.find(doc => doc.id === item.productId);
+                            return productDoc?.data()?.sku || '';
+                        }).filter(sku => sku);
+                        
+                        const destProductQueries = skus.map(sku => 
+                            query(collection(db, 'products'), where('sku', '==', sku), where('warehouse', '==', payload.to))
+                        );
+                        
+                        const destSnapshots = await Promise.all(destProductQueries.map(q => getDocs(q)));
+                        
+                        // Execute transaction
                         await runTransaction(db, async (transaction) => {
                             const transferRef = doc(collection(db, 'transfers'));
-                            for (const item of payload.items) {
-                                const productRef = doc(db, 'products', item.productId);
-                                const productDoc = await transaction.get(productRef);
-                                if (!productDoc.exists()) throw new Error(`Product ${item.name} not found.`);
+                            
+                            // Update source products
+                            for (let i = 0; i < payload.items.length; i++) {
+                                const item = payload.items[i];
+                                const productDoc = productDocs[i];
                                 const product = productDoc.data();
-                                if (product.warehouse !== payload.from) throw new Error(`Product ${item.name} is not in warehouse ${payload.from}.`);
-                                if (item.qty > (product.stock || 0)) throw new Error(`Insufficient stock for ${item.name}.`);
-                                // Update source product
-                                transaction.update(productRef, {
-                                    stock: (product.stock || 0) - item.qty,
-                                    status: (product.stock - item.qty) === 0 ? 'out-of-stock' : (product.stock - item.qty) < 20 ? 'low-stock' : 'in-stock',
+                                const newStock = (product.stock || 0) - item.qty;
+                                
+                                transaction.update(productDoc.ref, {
+                                    stock: newStock,
+                                    status: newStock === 0 ? 'out-of-stock' : newStock < 20 ? 'low-stock' : 'in-stock',
                                     updatedAt: serverTimestamp(),
                                     updatedBy: user.uid
                                 });
-                                // Find or create destination product
-                                const destProductQ = query(collection(db, 'products'), where('sku', '==', product.sku));
-                                const destSnap = await getDocs(destProductQ);
-                                const destFiltered = destSnap.docs.filter(d => (d.data().warehouse || '') === payload.to);
-                                let destProductRef;
-                                if (destFiltered.length === 0) {
-                                    destProductRef = doc(collection(db, 'products'));
-                                    transaction.set(destProductRef, {
+                                
+                                // Handle destination product
+                                const destProducts = destSnapshots[i]?.docs || [];
+                                if (destProducts.length > 0) {
+                                    const destProduct = destProducts[0];
+                                    const destStock = (destProduct.data().stock || 0) + item.qty;
+                                    transaction.update(destProduct.ref, {
+                                        stock: destStock,
+                                        status: destStock < 20 ? 'low-stock' : 'in-stock',
+                                        updatedAt: serverTimestamp(),
+                                        updatedBy: user.uid
+                                    });
+                                } else {
+                                    const newProductRef = doc(collection(db, 'products'));
+                                    transaction.set(newProductRef, {
                                         name: product.name,
                                         sku: product.sku,
-                                        category: product.category,
-                                        price: product.price,
+                                        category: product.category || 'Uncategorized',
+                                        price: product.price || 0,
                                         stock: item.qty,
                                         status: item.qty < 20 ? 'low-stock' : 'in-stock',
                                         warehouse: payload.to,
@@ -1052,17 +1149,10 @@
                                         updatedAt: serverTimestamp(),
                                         updatedBy: user.uid
                                     });
-                                } else {
-                                    destProductRef = destFiltered[0].ref;
-                                    const destProduct = destFiltered[0].data();
-                                    transaction.update(destProductRef, {
-                                        stock: (destProduct.stock || 0) + item.qty,
-                                        status: ((destProduct.stock || 0) + item.qty) < 20 ? 'low-stock' : 'in-stock',
-                                        updatedAt: serverTimestamp(),
-                                        updatedBy: user.uid
-                                    });
                                 }
                             }
+                            
+                            // Create transfer record
                             transaction.set(transferRef, {
                                 ...payload,
                                 status: 'confirmed',
@@ -1073,6 +1163,7 @@
                                 confirmedAt: serverTimestamp()
                             });
                         });
+                        
                         alert('Transfer submitted successfully.');
                         resetForm();
                     } catch (error) {
