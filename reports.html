@@ -114,7 +114,7 @@
                     <button id="mobile-menu-btn">☰</button>
                     <div class="search-bar" style="flex:1;">
                         <i class="fas fa-search"></i>
-                        <input type="text" id="search" placeholder="Search reports...">
+                        <input type="text" id="search-input" placeholder="Search reports...">
                     </div>
                 </div>
                 <div class="user-profile" id="user-profile">
@@ -229,16 +229,13 @@
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
         import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
-        import { getFirestore, collection, doc, getDoc, setDoc, query, where, orderBy, onSnapshot, getDocs } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+        import { getFirestore, collection, doc, getDoc, setDoc, addDoc, query, where, orderBy, onSnapshot, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 
         (function(){
             const setHeader = (displayName, email) => {
                 const name = displayName || email || 'User';
-                const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=3498db&color=fff`;
                 const nameEl = document.getElementById('user-name');
-                const avatarEl = document.getElementById('user-avatar');
                 if (nameEl) nameEl.textContent = name;
-                if (avatarEl) avatarEl.src = avatar;
             };
 
             const init = async () => {
@@ -306,8 +303,12 @@
 
             function formatDate(timestamp) {
                 if (!timestamp) return '';
-                const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-                return date.toISOString().split('T')[0];
+                try {
+                    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+                    return date.toISOString().split('T')[0];
+                } catch (e) {
+                    return '';
+                }
             }
 
             async function setupReports(db, user, currencyCode) {
@@ -315,180 +316,266 @@
                 const dateFrom = document.getElementById('dateFrom');
                 const dateTo = document.getElementById('dateTo');
                 const groupBy = document.getElementById('groupBy');
-                const search = document.getElementById('search');
+                const searchInput = document.getElementById('search');
+                const searchTableInput = document.getElementById('search-input');
                 const warehouseFilter = document.getElementById('warehouse');
                 const reportsBody = document.getElementById('reports-body');
                 let allowedWarehouses = null;
                 let warehouses = [];
+                let unsubscribeReports = null;
+
+                // Set default date range (last 30 days)
+                const today = new Date();
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(today.getDate() - 30);
+                dateFrom.value = thirtyDaysAgo.toISOString().split('T')[0];
+                dateTo.value = today.toISOString().split('T')[0];
 
                 // Load user access
-                (function loadUserContext(){
+                async function loadUserContext() {
                     try {
                         const meRef = doc(db, 'users', user.uid);
-                        onSnapshot(meRef, (snap) => {
-                            if (snap.exists()) {
-                                const u = snap.data();
-                                const role = u.role || 'staff';
-                                const arr = Array.isArray(u.warehouses) ? u.warehouses.filter(Boolean) : [];
-                                allowedWarehouses = (role === 'admin') ? null : arr;
-                                loadWarehouses();
-                                updateDashboardCards();
-                                renderReports();
-                            } else {
-                                allowedWarehouses = null;
-                                loadWarehouses();
-                                updateDashboardCards();
-                                renderReports();
-                            }
-                        });
-                    } catch (e) { console.error('Failed to load user context', e); }
-                })();
+                        const meSnap = await getDoc(meRef);
+                        if (meSnap.exists()) {
+                            const u = meSnap.data();
+                            const role = u.role || 'staff';
+                            const arr = Array.isArray(u.warehouses) ? u.warehouses.filter(Boolean) : [];
+                            allowedWarehouses = (role === 'admin') ? null : arr;
+                        } else {
+                            allowedWarehouses = null;
+                        }
+                        await loadWarehouses();
+                        await updateDashboardCards();
+                        await renderReports();
+                    } catch (e) { 
+                        console.error('Failed to load user context', e); 
+                    }
+                }
 
                 // Load warehouses
-                function loadWarehouses() {
-                    let q = query(collection(db, 'warehouses'), orderBy('name'));
-                    if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
-                        q = query(q, where('name', 'in', allowedWarehouses.slice(0, 10)));
-                    }
-                    onSnapshot(q, (snap) => {
+                async function loadWarehouses() {
+                    try {
+                        let q = query(collection(db, 'warehouses'), orderBy('name'));
+                        if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
+                            q = query(q, where('name', 'in', allowedWarehouses.slice(0, 10)));
+                        }
+                        const snap = await getDocs(q);
                         warehouses = snap.docs.map(d => d.data().name).filter(Boolean);
-                        const selects = [document.getElementById('global-warehouse'), warehouseFilter];
-                        selects.forEach(sel => {
-                            if (!sel) return;
-                            const current = sel.value;
-                            sel.innerHTML = '<option value="">All</option>';
+                        
+                        // Update global warehouse dropdown
+                        const globalWarehouseSelect = document.getElementById('global-warehouse');
+                        if (globalWarehouseSelect) {
+                            const saved = localStorage.getItem('selectedWarehouse') || '';
+                            globalWarehouseSelect.innerHTML = '<option value="">All Warehouses</option>';
                             warehouses.forEach(w => {
                                 const opt = document.createElement('option');
                                 opt.value = w;
                                 opt.textContent = w;
-                                sel.appendChild(opt);
+                                globalWarehouseSelect.appendChild(opt);
                             });
-                            sel.value = warehouses.includes(current) ? current : '';
-                        });
-                    }, (error) => {
+                            globalWarehouseSelect.value = warehouses.includes(saved) ? saved : '';
+                        }
+                        
+                        // Update warehouse filter
+                        if (warehouseFilter) {
+                            warehouseFilter.innerHTML = '<option value="">All</option>';
+                            warehouses.forEach(w => {
+                                const opt = document.createElement('option');
+                                opt.value = w;
+                                opt.textContent = w;
+                                warehouseFilter.appendChild(opt);
+                            });
+                        }
+                    } catch (error) {
                         console.error('Error loading warehouses:', error);
-                    });
+                    }
                 }
 
                 // Update dashboard cards
                 async function updateDashboardCards() {
-                    const thirtyDaysAgo = new Date();
-                    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                    let ordersQuery = query(collection(db, 'orders'), where('createdAt', '>=', thirtyDaysAgo));
-                    let productsQuery = collection(db, 'products');
-                    if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
-                        ordersQuery = query(ordersQuery, where('warehouse', 'in', allowedWarehouses.slice(0, 10)));
-                        productsQuery = query(productsQuery, where('warehouse', 'in', allowedWarehouses.slice(0, 10)));
-                    }
-
-                    // Sales (30d)
-                    const ordersSnap = await getDocs(ordersQuery);
-                    let totalSales = 0;
-                    let categorySales = {};
-                    ordersSnap.forEach(doc => {
-                        const order = doc.data();
-                        if (order.status === 'paid') {
-                            totalSales += Number(order.total || 0);
-                            order.items.forEach(item => {
-                                categorySales[item.category || 'Unknown'] = (categorySales[item.category || 'Unknown'] || 0) + (item.qty * item.unitPrice);
-                            });
+                    try {
+                        const thirtyDaysAgo = new Date();
+                        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                        
+                        // Sales (30d)
+                        let ordersQuery = query(
+                            collection(db, 'orders'), 
+                            where('createdAt', '>=', thirtyDaysAgo)
+                        );
+                        if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
+                            ordersQuery = query(ordersQuery, where('warehouse', 'in', allowedWarehouses.slice(0, 10)));
                         }
-                    });
-                    document.querySelector('#sales-card .card-value').textContent = `${currencySymbol(currencyCode)}${totalSales.toFixed(2)}`;
-                    document.querySelector('#sales-card .positive').innerHTML = `<i class="fas fa-arrow-up"></i> ${totalSales > 0 ? 'Positive' : '0%'}`;
-
-                    // Top Category
-                    const topCategory = Object.entries(categorySales).sort((a, b) => b[1] - a[1])[0];
-                    document.querySelector('#top-category-card .card-value').textContent = topCategory ? topCategory[0] : 'None';
-                    document.querySelector('#top-category-card .positive').textContent = topCategory ? `${((topCategory[1] / totalSales) * 100).toFixed(1)}% of sales` : '0% of sales';
-
-                    // Low Stock Items
-                    const productsSnap = await getDocs(productsQuery);
-                    let lowStockCount = 0;
-                    productsSnap.forEach(doc => {
-                        const product = doc.data();
-                        if (product.stock < 20) lowStockCount++;
-                    });
-                    document.querySelector('#low-stock-card .card-value').textContent = lowStockCount;
-                    document.querySelector('#low-stock-card .negative').innerHTML = `<i class="fas fa-arrow-up"></i> ${lowStockCount > 0 ? 'Increased' : '0%'}`;
-
-                    // Cancelled Orders
-                    let cancelledOrdersQuery = query(collection(db, 'orders'), where('status', '==', 'cancelled'), where('createdAt', '>=', thirtyDaysAgo));
-                    if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
-                        cancelledOrdersQuery = query(cancelledOrdersQuery, where('warehouse', 'in', allowedWarehouses.slice(0, 10)));
+                        
+                        const ordersSnap = await getDocs(ordersQuery);
+                        let totalSales = 0;
+                        let categorySales = {};
+                        
+                        ordersSnap.forEach(doc => {
+                            const order = doc.data();
+                            if (order.status === 'paid' || order.status === 'completed') {
+                                totalSales += Number(order.total || 0);
+                                if (order.items && Array.isArray(order.items)) {
+                                    order.items.forEach(item => {
+                                        const category = item.category || 'Unknown';
+                                        categorySales[category] = (categorySales[category] || 0) + (item.qty * (item.unitPrice || 0));
+                                    });
+                                }
+                            }
+                        });
+                        
+                        document.querySelector('#sales-card .card-value').textContent = `${currencySymbol(currencyCode)}${totalSales.toFixed(2)}`;
+                        document.querySelector('#sales-card .positive').innerHTML = totalSales > 0 ? `<i class="fas fa-arrow-up"></i> Active` : 'No sales';
+                        
+                        // Top Category
+                        const topCategory = Object.entries(categorySales).sort((a, b) => b[1] - a[1])[0];
+                        document.querySelector('#top-category-card .card-value').textContent = topCategory ? topCategory[0].substring(0, 10) + (topCategory[0].length > 10 ? '...' : '') : 'None';
+                        if (topCategory && totalSales > 0) {
+                            const percentage = ((topCategory[1] / totalSales) * 100).toFixed(1);
+                            document.querySelector('#top-category-card .positive').textContent = `${percentage}% of sales`;
+                        } else {
+                            document.querySelector('#top-category-card .positive').textContent = '0% of sales';
+                        }
+                        
+                        // Low Stock Items
+                        let productsQuery = query(collection(db, 'products'));
+                        if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
+                            productsQuery = query(productsQuery, where('warehouse', 'in', allowedWarehouses.slice(0, 10)));
+                        }
+                        
+                        const productsSnap = await getDocs(productsQuery);
+                        let lowStockCount = 0;
+                        productsSnap.forEach(doc => {
+                            const product = doc.data();
+                            if ((product.stock || 0) < 20) lowStockCount++;
+                        });
+                        
+                        document.querySelector('#low-stock-card .card-value').textContent = lowStockCount;
+                        document.querySelector('#low-stock-card .negative').innerHTML = lowStockCount > 0 ? `<i class="fas fa-arrow-up"></i> ${lowStockCount} items` : 'All good';
+                        
+                        // Cancelled Orders
+                        let cancelledOrdersQuery = query(
+                            collection(db, 'orders'), 
+                            where('status', '==', 'cancelled'), 
+                            where('createdAt', '>=', thirtyDaysAgo)
+                        );
+                        if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
+                            cancelledOrdersQuery = query(cancelledOrdersQuery, where('warehouse', 'in', allowedWarehouses.slice(0, 10)));
+                        }
+                        
+                        const cancelledSnap = await getDocs(cancelledOrdersQuery);
+                        const cancelledCount = cancelledSnap.size;
+                        document.querySelector('#cancelled-orders-card .card-value').textContent = cancelledCount;
+                        document.querySelector('#cancelled-orders-card .positive').innerHTML = cancelledCount > 0 ? `<i class="fas fa-arrow-up"></i> ${cancelledCount} orders` : 'No cancellations';
+                        
+                    } catch (error) {
+                        console.error('Error updating dashboard cards:', error);
                     }
-                    const cancelledSnap = await getDocs(cancelledOrdersQuery);
-                    const cancelledCount = cancelledSnap.size;
-                    document.querySelector('#cancelled-orders-card .card-value').textContent = cancelledCount;
-                    document.querySelector('#cancelled-orders-card .positive').innerHTML = `<i class="fas fa-arrow-down"></i> ${cancelledCount > 0 ? 'Decreased' : '0%'}`;
                 }
 
                 // Render reports
-                let unsubscribeReports;
-                function renderReports() {
-                    if (unsubscribeReports) unsubscribeReports();
-                    let q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'));
-                    if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
-                        q = query(q, where('warehouse', 'in', allowedWarehouses.slice(0, 10)));
-                    }
-                    unsubscribeReports = onSnapshot(q, (snap) => {
-                        reportsBody.innerHTML = snap.empty ? '<tr><td colspan="5" style="text-align:center; color:#95a5a6;">No reports found.</td></tr>' : '';
-                        snap.forEach(doc => {
-                            const report = doc.data();
-                            const tr = document.createElement('tr');
-                            tr.dataset.id = doc.id;
-                            tr.innerHTML = `
-                                <td>${report.title || 'Untitled'}</td>
-                                <td><span class="tag ${report.type || 'sales'}">${(report.type || 'sales').charAt(0).toUpperCase() + (report.type || 'sales').slice(1)}</span></td>
-                                <td>${formatDate(report.dateFrom)} → ${formatDate(report.dateTo)}</td>
-                                <td>${formatDate(report.createdAt)}</td>
-                                <td>
-                                    <button class="btn btn-primary btn-view"><i class="fas fa-eye"></i> View</button>
-                                    <button class="btn btn-success btn-download"><i class="fas fa-download"></i> Download</button>
-                                </td>
-                            `;
-                            tr.querySelector('.btn-view').onclick = () => {
-                                alert(`Viewing: ${report.title}\nType: ${report.type}\nDate Range: ${formatDate(report.dateFrom)} → ${formatDate(report.dateTo)}\nDetails: ${JSON.stringify(report.data, null, 2)}`);
-                            };
-                            tr.querySelector('.btn-download').onclick = () => downloadReport(doc.id, report);
-                            reportsBody.appendChild(tr);
+                async function renderReports() {
+                    try {
+                        if (unsubscribeReports) unsubscribeReports();
+                        
+                        let reportsQuery = query(collection(db, 'reports'), orderBy('createdAt', 'desc'));
+                        
+                        unsubscribeReports = onSnapshot(reportsQuery, (snap) => {
+                            reportsBody.innerHTML = '';
+                            
+                            if (snap.empty) {
+                                reportsBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#95a5a6; padding:20px;">No reports found. Generate a report to get started.</td></tr>';
+                                return;
+                            }
+                            
+                            snap.forEach(doc => {
+                                const report = doc.data();
+                                const tr = document.createElement('tr');
+                                tr.dataset.id = doc.id;
+                                
+                                // Determine tag class
+                                let tagClass = 'sales';
+                                if (report.type === 'inventory') tagClass = 'inventory';
+                                if (report.type === 'supply') tagClass = 'supply';
+                                
+                                tr.innerHTML = `
+                                    <td>${report.title || 'Untitled Report'}</td>
+                                    <td><span class="tag ${tagClass}">${(report.type || 'sales').charAt(0).toUpperCase() + (report.type || 'sales').slice(1)}</span></td>
+                                    <td>${formatDate(report.dateFrom)} → ${formatDate(report.dateTo)}</td>
+                                    <td>${formatDate(report.createdAt)}</td>
+                                    <td>
+                                        <button class="btn btn-primary btn-view"><i class="fas fa-eye"></i> View</button>
+                                        <button class="btn btn-success btn-download"><i class="fas fa-download"></i> Download</button>
+                                    </td>
+                                `;
+                                
+                                tr.querySelector('.btn-view').onclick = () => viewReport(doc.id, report);
+                                tr.querySelector('.btn-download').onclick = () => downloadReport(doc.id, report);
+                                reportsBody.appendChild(tr);
+                            });
+                            
+                            applyFilters();
+                            
+                        }, (error) => {
+                            console.error('Error loading reports:', error);
+                            reportsBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#e74c3c; padding:20px;">Failed to load reports. Please check your connection and try again.</td></tr>';
                         });
-                        applyFilters();
-                    }, (error) => {
-                        console.error('Error loading reports:', error);
-                        alert('Failed to load reports. Please try again.');
-                    });
+                        
+                    } catch (error) {
+                        console.error('Error in renderReports:', error);
+                        reportsBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#e74c3c; padding:20px;">Error loading reports.</td></tr>';
+                    }
+                }
+
+                // View report
+                function viewReport(id, report) {
+                    const reportData = report.data || {};
+                    let details = `Report: ${report.title || 'Untitled'}\n`;
+                    details += `Type: ${report.type || 'Unknown'}\n`;
+                    details += `Date Range: ${formatDate(report.dateFrom)} → ${formatDate(report.dateTo)}\n`;
+                    details += `Warehouse: ${report.warehouse || 'All'}\n`;
+                    details += `Created: ${formatDate(report.createdAt)}\n\n`;
+                    details += `Data:\n${JSON.stringify(reportData, null, 2)}`;
+                    
+                    alert(details);
                 }
 
                 // Download report
-                async function downloadReport(id, report) {
+                function downloadReport(id, report) {
                     try {
-                        const csv = generateReportCSV(report);
-                        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                        const reportData = report.data || {};
+                        let csvContent = 'Report Data\n';
+                        
+                        // Add metadata
+                        csvContent += `Title,${report.title || 'Untitled'}\n`;
+                        csvContent += `Type,${report.type || 'Unknown'}\n`;
+                        csvContent += `Date From,${formatDate(report.dateFrom)}\n`;
+                        csvContent += `Date To,${formatDate(report.dateTo)}\n`;
+                        csvContent += `Warehouse,${report.warehouse || 'All'}\n`;
+                        csvContent += `Created,${formatDate(report.createdAt)}\n\n`;
+                        
+                        // Add data
+                        csvContent += 'Metric,Value\n';
+                        Object.entries(reportData).forEach(([key, value]) => {
+                            csvContent += `${key},${value}\n`;
+                        });
+                        
+                        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = `${report.title}_${formatDate(report.createdAt)}.csv`;
+                        const fileName = `report_${(report.title || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${formatDate(report.createdAt)}.csv`;
+                        a.download = fileName;
                         a.style.display = 'none';
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
-                        alert(`Downloaded: ${report.title}`);
+                        
+                        alert(`Report "${report.title || 'Untitled'}" downloaded successfully.`);
                     } catch (error) {
                         console.error('Error downloading report:', error);
                         alert('Failed to download report. Please try again.');
                     }
-                }
-
-                // Generate report CSV
-                function generateReportCSV(report) {
-                    const headers = ['Item', 'Value'];
-                    const rows = Object.entries(report.data || {}).map(([key, value]) => [key, value]);
-                    return [headers, ...rows].map(row => row.map(cell => {
-                        const text = String(cell ?? '').replace(/\s+/g, ' ').trim();
-                        return (text.includes(',') || text.includes('"')) ? `"${text.replace(/"/g, '""')}"` : text;
-                    }).join(',')).join('\n');
                 }
 
                 // Generate report
@@ -498,82 +585,157 @@
                         const from = dateFrom.value ? new Date(dateFrom.value) : new Date();
                         const to = dateTo.value ? new Date(dateTo.value) : new Date();
                         const warehouse = warehouseFilter.value;
-                        let data = {};
-                        let title = `${type.charAt(0).toUpperCase() + type.slice(1)} Report ${formatDate(from)}`;
+                        
+                        if (from > to) {
+                            alert('Start date cannot be after end date.');
+                            return;
+                        }
+                        
+                        // Calculate data based on report type
+                        let reportData = {};
+                        let title = '';
+                        
                         if (type === 'sales') {
-                            let q = query(collection(db, 'orders'), where('date', '>=', from.toISOString().split('T')[0]), where('date', '<=', to.toISOString().split('T')[0]));
-                            if (warehouse) q = query(q, where('warehouse', '==', warehouse));
-                            if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
-                                q = query(q, where('warehouse', 'in', allowedWarehouses.slice(0, 10)));
+                            let ordersQuery = query(
+                                collection(db, 'orders'),
+                                where('date', '>=', from.toISOString().split('T')[0]),
+                                where('date', '<=', to.toISOString().split('T')[0])
+                            );
+                            
+                            if (warehouse) {
+                                ordersQuery = query(ordersQuery, where('warehouse', '==', warehouse));
+                            } else if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
+                                ordersQuery = query(ordersQuery, where('warehouse', 'in', allowedWarehouses.slice(0, 10)));
                             }
-                            const snap = await getDocs(q);
-                            data.total = 0;
+                            
+                            const snap = await getDocs(ordersQuery);
+                            let totalSales = 0;
+                            let orderCount = 0;
+                            let paidOrders = 0;
+                            
                             snap.forEach(doc => {
                                 const order = doc.data();
-                                if (order.status === 'paid') data.total += Number(order.total || 0);
+                                orderCount++;
+                                if (order.status === 'paid' || order.status === 'completed') {
+                                    paidOrders++;
+                                    totalSales += Number(order.total || 0);
+                                }
                             });
+                            
+                            reportData = {
+                                totalSales: totalSales,
+                                orderCount: orderCount,
+                                paidOrders: paidOrders,
+                                conversionRate: orderCount > 0 ? ((paidOrders / orderCount) * 100).toFixed(2) + '%' : '0%'
+                            };
+                            
+                            title = `Sales Report ${formatDate(from)} to ${formatDate(to)}`;
+                            if (warehouse) title += ` - ${warehouse}`;
+                            
                         } else if (type === 'inventory') {
-                            let q = collection(db, 'products');
-                            if (warehouse) q = query(q, where('warehouse', '==', warehouse));
-                            if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
-                                q = query(q, where('warehouse', 'in', allowedWarehouses.slice(0, 10)));
+                            let productsQuery = query(collection(db, 'products'));
+                            
+                            if (warehouse) {
+                                productsQuery = query(productsQuery, where('warehouse', '==', warehouse));
+                            } else if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
+                                productsQuery = query(productsQuery, where('warehouse', 'in', allowedWarehouses.slice(0, 10)));
                             }
-                            const snap = await getDocs(q);
-                            data.lowStock = 0;
+                            
+                            const snap = await getDocs(productsQuery);
+                            let totalProducts = 0;
+                            let lowStockCount = 0;
+                            let outOfStockCount = 0;
+                            let totalValue = 0;
+                            
                             snap.forEach(doc => {
-                                if (doc.data().stock < 20) data.lowStock++;
+                                const product = doc.data();
+                                totalProducts++;
+                                if ((product.stock || 0) < 20) lowStockCount++;
+                                if ((product.stock || 0) === 0) outOfStockCount++;
+                                totalValue += (product.stock || 0) * (product.price || 0);
                             });
+                            
+                            reportData = {
+                                totalProducts: totalProducts,
+                                lowStockItems: lowStockCount,
+                                outOfStockItems: outOfStockCount,
+                                inventoryValue: totalValue.toFixed(2)
+                            };
+                            
+                            title = `Inventory Report ${formatDate(from)} to ${formatDate(to)}`;
+                            if (warehouse) title += ` - ${warehouse}`;
+                            
                         } else if (type === 'supply') {
-                            let q = collection(db, 'products');
-                            if (warehouse) q = query(q, where('warehouse', '==', warehouse));
-                            if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
-                                q = query(q, where('warehouse', 'in', allowedWarehouses.slice(0, 10)));
+                            let productsQuery = query(collection(db, 'products'));
+                            
+                            if (warehouse) {
+                                productsQuery = query(productsQuery, where('warehouse', '==', warehouse));
+                            } else if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
+                                productsQuery = query(productsQuery, where('warehouse', 'in', allowedWarehouses.slice(0, 10)));
                             }
-                            const snap = await getDocs(q);
-                            data.reorderCount = 0;
+                            
+                            const snap = await getDocs(productsQuery);
+                            let reorderNeeded = 0;
+                            let lowStockItems = 0;
+                            let criticalItems = 0;
+                            
                             snap.forEach(doc => {
-                                if (doc.data().stock < 20) data.reorderCount++;
+                                const product = doc.data();
+                                const stock = product.stock || 0;
+                                if (stock < 5) criticalItems++;
+                                if (stock < 20) lowStockItems++;
+                                if (stock < 10) reorderNeeded++;
                             });
+                            
+                            reportData = {
+                                reorderNeeded: reorderNeeded,
+                                lowStockItems: lowStockItems,
+                                criticalItems: criticalItems
+                            };
+                            
+                            title = `Supply Report ${formatDate(from)} to ${formatDate(to)}`;
+                            if (warehouse) title += ` - ${warehouse}`;
                         }
-                        await addDoc(collection(db, 'reports'), {
-                            title,
-                            type,
+                        
+                        // Save report to Firestore
+                        const reportRef = await addDoc(collection(db, 'reports'), {
+                            title: title,
+                            type: type,
                             dateFrom: from,
                             dateTo: to,
                             warehouse: warehouse || '',
-                            data,
-                            createdAt: new Date(),
+                            data: reportData,
+                            createdAt: serverTimestamp(),
                             createdBy: user.uid
                         });
-                        alert('Report generated successfully.');
+                        
+                        alert(`Report "${title}" generated successfully!`);
+                        
                     } catch (error) {
                         console.error('Error generating report:', error);
-                        alert('Failed to generate report. Please try again.');
+                        alert(`Failed to generate report: ${error.message}`);
                     }
                 };
 
-                // Export reports
+                // Export all reports
                 document.getElementById('btn-export').onclick = async () => {
                     try {
-                        let q = query(collection(db, 'reports'));
-                        if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
-                            q = query(q, where('warehouse', 'in', allowedWarehouses.slice(0, 10)));
-                        }
-                        const snap = await getDocs(q);
+                        let reportsQuery = query(collection(db, 'reports'), orderBy('createdAt', 'desc'));
+                        const snap = await getDocs(reportsQuery);
+                        
                         if (snap.empty) {
                             alert('No reports to export.');
                             return;
                         }
-                        const headers = ['Title', 'Type', 'Date From', 'Date To', 'Warehouse', 'Created'];
-                        const rows = snap.docs.map(doc => {
-                            const r = doc.data();
-                            return [r.title, r.type, formatDate(r.dateFrom), formatDate(r.dateTo), r.warehouse || 'All', formatDate(r.createdAt)];
+                        
+                        let csvContent = 'Title,Type,Date From,Date To,Warehouse,Created\n';
+                        
+                        snap.forEach(doc => {
+                            const report = doc.data();
+                            csvContent += `"${report.title || ''}","${report.type || ''}","${formatDate(report.dateFrom)}","${formatDate(report.dateTo)}","${report.warehouse || ''}","${formatDate(report.createdAt)}"\n`;
                         });
-                        const csv = [headers, ...rows].map(row => row.map(cell => {
-                            const text = String(cell ?? '').replace(/\s+/g, ' ').trim();
-                            return (text.includes(',') || text.includes('"')) ? `"${text.replace(/"/g, '""')}"` : text;
-                        }).join(',')).join('\n');
-                        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                        
+                        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
@@ -583,7 +745,8 @@
                         a.click();
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
-                        alert('Reports exported successfully.');
+                        
+                        alert(`Exported ${snap.size} reports successfully.`);
                     } catch (error) {
                         console.error('Error exporting reports:', error);
                         alert('Failed to export reports. Please try again.');
@@ -596,30 +759,50 @@
                     const fromVal = dateFrom.value ? new Date(dateFrom.value) : null;
                     const toVal = dateTo.value ? new Date(dateTo.value) : null;
                     const warehouseVal = warehouseFilter.value;
-                    const query = search.value.toLowerCase();
+                    const queryText = (searchInput.value || searchTableInput.value || '').toLowerCase();
+                    
                     const rows = reportsBody.querySelectorAll('tr');
                     rows.forEach(row => {
-                        if (!row || row.children.length < 5) return;
-                        const title = row.children[0].textContent.toLowerCase();
-                        const tagEl = row.querySelector('.tag');
-                        const rowType = tagEl.classList.contains('sales') ? 'sales' : tagEl.classList.contains('inventory') ? 'inventory' : 'supply';
-                        const range = row.children[2].textContent.split('→').map(s => s.trim());
-                        const start = new Date(range[0]);
-                        const end = new Date(range[1]);
-                        const warehouse = row.dataset.warehouse || '';
+                        if (row.cells.length < 5) return;
+                        
+                        const title = row.cells[0].textContent.toLowerCase();
+                        const typeSpan = row.querySelector('.tag');
+                        const rowType = typeSpan ? typeSpan.textContent.toLowerCase() : '';
+                        const dateRange = row.cells[2].textContent.split('→').map(s => s.trim());
+                        const start = dateRange[0] ? new Date(dateRange[0]) : null;
+                        const end = dateRange[1] ? new Date(dateRange[1]) : null;
+                        
                         let visible = true;
-                        if (typeVal && rowType !== typeVal) visible = false;
-                        if (fromVal && end < fromVal) visible = false;
-                        if (toVal && start > toVal) visible = false;
-                        if (warehouseVal && warehouse !== warehouseVal) visible = false;
-                        if (query && !title.includes(query)) visible = false;
+                        
+                        // Filter by type
+                        if (typeVal && !rowType.includes(typeVal.toLowerCase())) {
+                            visible = false;
+                        }
+                        
+                        // Filter by date range
+                        if (fromVal && end && end < fromVal) {
+                            visible = false;
+                        }
+                        if (toVal && start && start > toVal) {
+                            visible = false;
+                        }
+                        
+                        // Filter by search
+                        if (queryText && !title.includes(queryText)) {
+                            visible = false;
+                        }
+                        
                         row.style.display = visible ? '' : 'none';
                     });
                 }
 
                 // Bind filter events
-                [reportType, dateFrom, dateTo, groupBy, warehouseFilter, search].forEach(el => el.addEventListener('change', applyFilters));
-                search.addEventListener('keyup', applyFilters);
+                [reportType, dateFrom, dateTo, groupBy, warehouseFilter, searchInput, searchTableInput].forEach(el => {
+                    if (el) {
+                        el.addEventListener('change', applyFilters);
+                        el.addEventListener('keyup', applyFilters);
+                    }
+                });
 
                 // Menu navigation
                 document.querySelectorAll('.menu-item').forEach(item => {
@@ -649,42 +832,19 @@
                 }
 
                 // Initialize global warehouse dropdown
-                (function initGlobalWarehouse(){
-                    const select = document.getElementById('global-warehouse');
-                    if (!select) {
-                        loadWarehouses();
-                        updateDashboardCards();
-                        renderReports();
-                        return;
-                    }
-                    const saved = localStorage.getItem('selectedWarehouse') || '';
-                    onSnapshot(query(collection(db, 'warehouses'), orderBy('name')), (snap) => {
-                        const names = snap.docs.map(d => d.data().name).filter(Boolean);
-                        select.innerHTML = '';
-                        const allOpt = document.createElement('option');
-                        allOpt.value = '';
-                        allOpt.textContent = 'All Warehouses';
-                        select.appendChild(allOpt);
-                        names.forEach(n => {
-                            const opt = document.createElement('option');
-                            opt.value = n;
-                            opt.textContent = n;
-                            select.appendChild(opt);
-                        });
-                        select.value = names.includes(saved) ? saved : '';
+                const globalWarehouseSelect = document.getElementById('global-warehouse');
+                if (globalWarehouseSelect) {
+                    globalWarehouseSelect.addEventListener('change', () => {
+                        localStorage.setItem('selectedWarehouse', globalWarehouseSelect.value);
                         const pageFilter = document.getElementById('warehouse');
-                        if (pageFilter) pageFilter.value = select.value;
+                        if (pageFilter) pageFilter.value = globalWarehouseSelect.value;
                         updateDashboardCards();
                         renderReports();
                     });
-                    select.addEventListener('change', () => {
-                        localStorage.setItem('selectedWarehouse', select.value);
-                        const pageFilter = document.getElementById('warehouse');
-                        if (pageFilter && pageFilter.value !== select.value) pageFilter.value = select.value;
-                        updateDashboardCards();
-                        renderReports();
-                    });
-                })();
+                }
+
+                // Initialize
+                await loadUserContext();
             }
 
             init();
