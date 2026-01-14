@@ -197,6 +197,15 @@
             background: #c0392b;
         }
         
+        .btn-warning {
+            background: var(--warning);
+            color: #fff;
+        }
+        
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+        
         .btn-small {
             padding: 6px 10px;
             font-size: 12px;
@@ -290,10 +299,11 @@
         }
         
         .status-badge {
-            padding: 3px 8px;
+            padding: 4px 10px;
             border-radius: 12px;
             font-size: 12px;
             font-weight: 500;
+            display: inline-block;
         }
         
         .status-draft {
@@ -304,6 +314,119 @@
         .status-confirmed {
             background: #2ecc71;
             color: white;
+        }
+        
+        .status-completed {
+            background: #3498db;
+            color: white;
+        }
+        
+        .status-cancelled {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .transfer-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            overflow: hidden;
+            background: #fff;
+            transition: box-shadow 0.3s;
+        }
+        
+        .transfer-card:hover {
+            box-shadow: 0 3px 15px rgba(0, 0, 0, 0.08);
+        }
+        
+        .transfer-header {
+            background: #f8f9fa;
+            padding: 12px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .transfer-body {
+            padding: 15px;
+        }
+        
+        .transfer-footer {
+            padding: 10px 15px;
+            background: #fafafa;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .items-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .item-card {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 3px solid var(--secondary);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #95a5a6;
+        }
+        
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: #ddd;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1002;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-body {
+            padding: 20px;
+        }
+        
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #95a5a6;
         }
         
         @media (max-width: 992px) {
@@ -325,6 +448,10 @@
             }
             
             .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .items-list {
                 grid-template-columns: 1fr;
             }
         }
@@ -358,6 +485,12 @@
             .btn {
                 flex: 1;
                 justify-content: center;
+            }
+            
+            .transfer-header, .transfer-footer {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
             }
         }
     </style>
@@ -499,7 +632,7 @@
                     <h3 style="font-size:18px;">Draft Transfers</h3>
                     <small style="color:#95a5a6;">Saved in Firestore</small>
                 </div>
-                <div id="drafts-list"></div>
+                <div id="drafts-list" class="transfers-list"></div>
             </div>
 
             <div class="card">
@@ -507,25 +640,39 @@
                     <h3 style="font-size:18px;">Confirmed Transfers</h3>
                     <button class="btn btn-success" id="btn-export-confirmed"><i class="fas fa-file-export"></i> Export CSV</button>
                 </div>
-                <div id="confirmed-list"></div>
+                <div id="confirmed-list" class="transfers-list"></div>
             </div>
         </div>
     </div>
+
+    <!-- Modal for viewing transfer details -->
+    <div id="transfer-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Transfer Details</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Content will be loaded here -->
+            </div>
+        </div>
+    </div>
+
     <div id="sidebar-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:900;"></div>
 
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
         import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp, query, orderBy, where, runTransaction, getDocs, getDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp, query, orderBy, where, runTransaction, getDocs, getDoc } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 
         (function(){
             const setHeader = (displayName, email) => {
                 const name = displayName || email || 'User';
                 const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=3498db&color=fff`;
                 const nameEl = document.getElementById('user-name');
-                const avatarEl = document.getElementById('user-avatar');
+                const roleEl = document.getElementById('user-role');
                 if (nameEl) nameEl.textContent = name;
-                if (avatarEl) avatarEl.src = avatar;
+                if (roleEl) roleEl.textContent = 'Authenticated';
             };
 
             const init = async () => {
@@ -563,13 +710,14 @@
                     const meRef = doc(db, 'users', user.uid);
                     const meSnap = await getDoc(meRef);
                     if (!meSnap.exists()) {
-                        await setDoc(meRef, { 
+                        await addDoc(collection(db, 'users'), {
+                            id: user.uid,
                             role: 'staff', 
                             warehouses: [],
                             name: user.displayName || user.email || 'User',
                             email: user.email,
-                            createdAt: new Date(),
-                            updatedAt: new Date()
+                            createdAt: serverTimestamp(),
+                            updatedAt: serverTimestamp()
                         });
                     }
                 } catch (e) {
@@ -586,9 +734,25 @@
                 const fromWh = document.getElementById('from_wh');
                 const toWh = document.getElementById('to_wh');
                 const trfNotes = document.getElementById('trf_notes');
+                const modal = document.getElementById('transfer-modal');
+                const closeModal = document.querySelector('.close-modal');
+                const modalBody = document.getElementById('modal-body');
+                const modalTitle = document.getElementById('modal-title');
+                
                 let products = [];
                 let warehouses = [];
                 let allowedWarehouses = null;
+
+                // Modal handling
+                closeModal.onclick = () => {
+                    modal.style.display = 'none';
+                };
+                
+                window.onclick = (event) => {
+                    if (event.target === modal) {
+                        modal.style.display = 'none';
+                    }
+                };
 
                 // Set default date to today
                 trfDate.value = new Date().toISOString().split('T')[0];
@@ -693,15 +857,16 @@
                         <td class="sku">${product.sku || ''}</td>
                         <td class="available">${product.stock || 0}</td>
                         <td><input type="number" class="qty" min="1" value="${data.qty}"></td>
-                        <td><select class="unit"><option value="pcs" ${data.unit === 'pcs' ? 'selected' : ''}>pcs</option><option value="box" ${data.unit === 'box' ? 'selected' : ''}>box</option></select></td>
-                        <td><input type="text" class="row-notes" value="${data.notes}"></td>
+                        <td><select class="unit"><option value="pcs" ${data.unit === 'pcs' ? 'selected' : ''}>pcs</option><option value="box" ${data.unit === 'box' ? 'selected' : ''}>box</option><option value="kg" ${data.unit === 'kg' ? 'selected' : ''}>kg</option><option value="liter" ${data.unit === 'liter' ? 'selected' : ''}>liter</option></select></td>
+                        <td><input type="text" class="row-notes" value="${data.notes}" placeholder="Item notes..."></td>
                         <td><button class="icon-btn btn-remove"><i class="fas fa-trash"></i></button></td>
                     `;
                     const select = tr.querySelector('.product');
+                    select.innerHTML = '<option value="">Select Product...</option>';
                     products.forEach(p => {
                         const opt = document.createElement('option');
                         opt.value = p.id;
-                        opt.textContent = p.name || 'Unnamed';
+                        opt.textContent = `${p.name || 'Unnamed'} (${p.sku || 'No SKU'})`;
                         if (p.id === data.productId) opt.selected = true;
                         select.appendChild(opt);
                     });
@@ -738,6 +903,7 @@
                         }
                         recalc();
                     });
+                    qtyInput.addEventListener('input', recalc);
                     tr.querySelector('.btn-remove').addEventListener('click', () => {
                         tr.remove();
                         recalc();
@@ -810,90 +976,292 @@
 
                 // Render drafts and confirmed lists
                 function renderLists() {
+                    // Render drafts
                     let draftsQ = query(collection(db, 'transfers'), where('status', '==', 'draft'));
                     if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
                         draftsQ = query(draftsQ, where('from', 'in', allowedWarehouses.slice(0, 10)));
                     }
+                    
                     onSnapshot(draftsQ, (snap) => {
                         const docs = snap.docs
                             .map(d => ({ id: d.id, ...d.data() }))
                             .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-                        draftsList.innerHTML = docs.length ? '' : '<div style="color:#95a5a6; padding:10px;">No drafts yet.</div>';
-                        docs.forEach(t => {
-                            const wrap = document.createElement('div');
-                            wrap.style.display = 'flex';
-                            wrap.style.alignItems = 'center';
-                            wrap.style.justifyContent = 'space-between';
-                            wrap.style.padding = '12px';
-                            wrap.style.borderBottom = '1px solid #eee';
-                            const when = t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000).toLocaleString() : '';
-                            wrap.innerHTML = `
-                                <div style="flex:1;">
-                                    <div style="display:flex; align-items:center; gap:8px;">
-                                        <span style="font-weight:600;">${t.number}</span>
-                                        <span class="status-badge status-draft">Draft</span>
-                                    </div>
-                                    <div style="font-size:12px; color:#95a5a6; margin-top:4px;">
-                                        ${t.from} → ${t.to} • ${t.items.length} items • ${when}
-                                    </div>
-                                </div>
-                                <div style="display:flex; gap:8px; flex-shrink:0;">
-                                    <button class="btn btn-primary btn-small" data-action="load">Load</button>
-                                    <button class="btn btn-success btn-small" data-action="confirm">Confirm</button>
-                                    <button class="btn btn-danger btn-small" data-action="delete">Delete</button>
+                        
+                        draftsList.innerHTML = '';
+                        
+                        if (docs.length === 0) {
+                            draftsList.innerHTML = `
+                                <div class="empty-state">
+                                    <i class="fas fa-file-alt"></i>
+                                    <h4>No Draft Transfers</h4>
+                                    <p>Create a new transfer above to get started</p>
                                 </div>
                             `;
-                            wrap.querySelector('[data-action="load"]').onclick = () => loadIntoForm(t);
-                            wrap.querySelector('[data-action="confirm"]').onclick = () => confirmDraft(t.id, t);
-                            wrap.querySelector('[data-action="delete"]').onclick = () => deleteDraft(t.id, t.number);
-                            draftsList.appendChild(wrap);
-                        });
+                        } else {
+                            docs.forEach(t => {
+                                const transferCard = createTransferCard(t, true);
+                                draftsList.appendChild(transferCard);
+                            });
+                        }
                     }, (error) => {
                         console.error('Error loading drafts:', error);
                         draftsList.innerHTML = '<div style="color:#e74c3c; padding:10px;">Failed to load drafts</div>';
                     });
 
+                    // Render confirmed transfers
                     let confirmedQ = query(collection(db, 'transfers'), where('status', '==', 'confirmed'));
                     if (Array.isArray(allowedWarehouses) && allowedWarehouses.length > 0) {
                         confirmedQ = query(confirmedQ, where('from', 'in', allowedWarehouses.slice(0, 10)));
                     }
+                    
                     onSnapshot(confirmedQ, (snap) => {
                         const docs = snap.docs
                             .map(d => ({ id: d.id, ...d.data() }))
                             .sort((a, b) => (b.confirmedAt?.seconds || 0) - (a.confirmedAt?.seconds || 0));
-                        confirmedList.innerHTML = docs.length ? '' : '<div style="color:#95a5a6; padding:10px;">No confirmed transfers yet.</div>';
-                        docs.forEach(t => {
-                            const wrap = document.createElement('div');
-                            wrap.style.display = 'flex';
-                            wrap.style.alignItems = 'center';
-                            wrap.style.justifyContent = 'space-between';
-                            wrap.style.padding = '12px';
-                            wrap.style.borderBottom = '1px solid #eee';
-                            const when = t.confirmedAt?.seconds ? new Date(t.confirmedAt.seconds * 1000).toLocaleString() : '';
-                            wrap.innerHTML = `
-                                <div style="flex:1;">
-                                    <div style="display:flex; align-items:center; gap:8px;">
-                                        <span style="font-weight:600;">${t.number}</span>
-                                        <span class="status-badge status-confirmed">Confirmed</span>
-                                    </div>
-                                    <div style="font-size:12px; color:#95a5a6; margin-top:4px;">
-                                        ${t.from} → ${t.to} • ${t.items.length} items • ${when}
-                                    </div>
-                                </div>
-                                <div style="display:flex; gap:8px; flex-shrink:0;">
-                                    <button class="btn btn-primary btn-small" data-action="view">View</button>
+                        
+                        confirmedList.innerHTML = '';
+                        
+                        if (docs.length === 0) {
+                            confirmedList.innerHTML = `
+                                <div class="empty-state">
+                                    <i class="fas fa-check-circle"></i>
+                                    <h4>No Confirmed Transfers</h4>
+                                    <p>Confirm a draft transfer or submit a new one</p>
                                 </div>
                             `;
-                            wrap.querySelector('[data-action="view"]').onclick = () => {
-                                const itemsList = t.items.map(i => `${i.sku || ''} ${i.name} x${i.qty} ${i.unit}`).join('\n');
-                                alert(`Transfer ${t.number}\n${t.from} → ${t.to}\nItems:\n${itemsList}\nNotes: ${t.notes || 'None'}`);
-                            };
-                            confirmedList.appendChild(wrap);
-                        });
+                        } else {
+                            docs.forEach(t => {
+                                const transferCard = createTransferCard(t, false);
+                                confirmedList.appendChild(transferCard);
+                            });
+                        }
                     }, (error) => {
                         console.error('Error loading confirmed transfers:', error);
                         confirmedList.innerHTML = '<div style="color:#e74c3c; padding:10px;">Failed to load confirmed transfers</div>';
                     });
+                }
+
+                // Create transfer card element
+                function createTransferCard(t, isDraft) {
+                    const transferCard = document.createElement('div');
+                    transferCard.className = 'transfer-card';
+                    transferCard.dataset.id = t.id;
+                    
+                    // Format dates
+                    const createdDate = t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000) : new Date();
+                    const createdStr = createdDate.toLocaleDateString() + ' ' + createdDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    
+                    const confirmedDate = t.confirmedAt?.seconds ? new Date(t.confirmedAt.seconds * 1000) : null;
+                    const confirmedStr = confirmedDate ? confirmedDate.toLocaleDateString() + ' ' + confirmedDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+                    
+                    // Header
+                    const header = document.createElement('div');
+                    header.className = 'transfer-header';
+                    header.innerHTML = `
+                        <div>
+                            <div style="display:flex; align-items:center; gap:10px; margin-bottom:5px;">
+                                <span style="font-weight:600; font-size:16px;">${t.number}</span>
+                                <span class="status-badge ${isDraft ? 'status-draft' : 'status-confirmed'}">
+                                    ${isDraft ? 'Draft' : 'Confirmed'}
+                                </span>
+                            </div>
+                            <div style="font-size:12px; color:#95a5a6;">
+                                <i class="fas fa-warehouse"></i> ${t.from} → ${t.to} • 
+                                <i class="fas fa-boxes"></i> ${t.items.length} items • 
+                                <i class="fas fa-calendar"></i> ${t.date || createdDate.toLocaleDateString()}
+                            </div>
+                        </div>
+                        <div style="font-size:12px; color:#95a5a6; text-align:right;">
+                            ${isDraft ? 'Created: ' + createdStr : 'Confirmed: ' + confirmedStr}
+                        </div>
+                    `;
+                    
+                    // Body with items
+                    const body = document.createElement('div');
+                    body.className = 'transfer-body';
+                    
+                    if (t.notes) {
+                        body.innerHTML += `
+                            <div style="margin-bottom:15px; padding:10px; background:#f8f9fa; border-radius:6px;">
+                                <strong>Notes:</strong> ${t.notes}
+                            </div>
+                        `;
+                    }
+                    
+                    body.innerHTML += '<strong>Items:</strong>';
+                    
+                    const itemsList = document.createElement('div');
+                    itemsList.className = 'items-list';
+                    
+                    t.items.forEach(item => {
+                        const itemCard = document.createElement('div');
+                        itemCard.className = 'item-card';
+                        itemCard.innerHTML = `
+                            <div style="font-weight:500;">${item.name || 'Unnamed Product'}</div>
+                            <div style="display:flex; justify-content:space-between; margin-top:5px;">
+                                <span style="font-size:12px; color:#666;">SKU: ${item.sku || 'N/A'}</span>
+                                <span style="font-weight:600;">${item.qty} ${item.unit}</span>
+                            </div>
+                            ${item.notes ? `<div style="font-size:11px; color:#888; margin-top:5px;">${item.notes}</div>` : ''}
+                        `;
+                        itemsList.appendChild(itemCard);
+                    });
+                    
+                    body.appendChild(itemsList);
+                    
+                    // Footer with actions
+                    const footer = document.createElement('div');
+                    footer.className = 'transfer-footer';
+                    
+                    if (isDraft) {
+                        footer.innerHTML = `
+                            <div style="font-size:12px; color:#666;">
+                                <i class="fas fa-user"></i> ${t.createdBy || user.uid}
+                            </div>
+                            <div style="display:flex; gap:8px;">
+                                <button class="btn btn-primary btn-small" data-action="view"><i class="fas fa-eye"></i> View</button>
+                                <button class="btn btn-success btn-small" data-action="confirm"><i class="fas fa-check"></i> Confirm</button>
+                                <button class="btn btn-danger btn-small" data-action="delete"><i class="fas fa-trash"></i> Delete</button>
+                            </div>
+                        `;
+                    } else {
+                        footer.innerHTML = `
+                            <div style="font-size:12px; color:#666;">
+                                <i class="fas fa-user-check"></i> ${t.createdBy || user.uid}
+                            </div>
+                            <div style="display:flex; gap:8px;">
+                                <button class="btn btn-primary btn-small" data-action="view"><i class="fas fa-eye"></i> View Details</button>
+                            </div>
+                        `;
+                    }
+                    
+                    // Assemble the card
+                    transferCard.appendChild(header);
+                    transferCard.appendChild(body);
+                    transferCard.appendChild(footer);
+                    
+                    // Add event listeners
+                    const viewBtn = transferCard.querySelector('[data-action="view"]');
+                    const confirmBtn = transferCard.querySelector('[data-action="confirm"]');
+                    const deleteBtn = transferCard.querySelector('[data-action="delete"]');
+                    
+                    viewBtn.addEventListener('click', () => viewTransferDetails(t));
+                    
+                    if (confirmBtn) {
+                        confirmBtn.addEventListener('click', () => confirmDraft(t.id, t));
+                    }
+                    
+                    if (deleteBtn) {
+                        deleteBtn.addEventListener('click', () => deleteDraft(t.id, t.number));
+                    }
+                    
+                    return transferCard;
+                }
+
+                // View transfer details in modal
+                function viewTransferDetails(t) {
+                    modalTitle.textContent = `Transfer: ${t.number}`;
+                    
+                    const createdDate = t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000) : new Date();
+                    const createdStr = createdDate.toLocaleDateString() + ' ' + createdDate.toLocaleTimeString();
+                    
+                    const confirmedDate = t.confirmedAt?.seconds ? new Date(t.confirmedAt.seconds * 1000) : null;
+                    const confirmedStr = confirmedDate ? confirmedDate.toLocaleDateString() + ' ' + confirmedDate.toLocaleTimeString() : 'Not confirmed';
+                    
+                    let itemsHtml = '';
+                    t.items.forEach((item, index) => {
+                        itemsHtml += `
+                            <tr>
+                                <td>${index + 1}</td>
+                                <td>${item.sku || 'N/A'}</td>
+                                <td>${item.name || 'Unnamed Product'}</td>
+                                <td>${item.qty}</td>
+                                <td>${item.unit}</td>
+                                <td>${item.notes || '-'}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    modalBody.innerHTML = `
+                        <div style="margin-bottom:20px;">
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:15px;">
+                                <div>
+                                    <strong>From:</strong><br>
+                                    ${t.from}
+                                </div>
+                                <div>
+                                    <strong>To:</strong><br>
+                                    ${t.to}
+                                </div>
+                            </div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:15px;">
+                                <div>
+                                    <strong>Transfer Date:</strong><br>
+                                    ${t.date || 'N/A'}
+                                </div>
+                                <div>
+                                    <strong>Status:</strong><br>
+                                    <span class="status-badge ${t.status === 'draft' ? 'status-draft' : 'status-confirmed'}">
+                                        ${t.status}
+                                    </span>
+                                </div>
+                            </div>
+                            <div style="margin-bottom:15px;">
+                                <strong>Created:</strong> ${createdStr}<br>
+                                <strong>Confirmed:</strong> ${confirmedStr}
+                            </div>
+                            ${t.notes ? `<div style="padding:10px; background:#f8f9fa; border-radius:6px; margin-bottom:15px;">
+                                <strong>Notes:</strong><br>${t.notes}
+                            </div>` : ''}
+                        </div>
+                        
+                        <div style="margin-bottom:15px;">
+                            <strong>Items (${t.items.length}):</strong>
+                        </div>
+                        <div class="table-wrapper">
+                            <table style="width:100%;">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>SKU</th>
+                                        <th>Product</th>
+                                        <th>Qty</th>
+                                        <th>Unit</th>
+                                        <th>Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${itemsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        ${t.status === 'draft' ? `
+                        <div style="display:flex; gap:10px; margin-top:20px;">
+                            <button id="modal-load-btn" class="btn btn-primary" style="flex:1;">
+                                <i class="fas fa-edit"></i> Load into Form
+                            </button>
+                            <button id="modal-confirm-btn" class="btn btn-success" style="flex:1;">
+                                <i class="fas fa-check"></i> Confirm Transfer
+                            </button>
+                        </div>
+                        ` : ''}
+                    `;
+                    
+                    // Add event listeners for modal buttons
+                    if (t.status === 'draft') {
+                        document.getElementById('modal-load-btn').addEventListener('click', () => {
+                            loadIntoForm(t);
+                            modal.style.display = 'none';
+                        });
+                        
+                        document.getElementById('modal-confirm-btn').addEventListener('click', () => {
+                            confirmDraft(t.id, t);
+                            modal.style.display = 'none';
+                        });
+                    }
+                    
+                    modal.style.display = 'flex';
                 }
 
                 // Load transfer into form
@@ -906,9 +1274,10 @@
                     tableBody.innerHTML = '';
                     t.items.forEach(item => addRow({ productId: item.productId, qty: item.qty, unit: item.unit, notes: item.notes }));
                     recalc();
+                    alert(`Transfer ${t.number} loaded into form.`);
                 }
 
-                // Confirm draft - FIXED VERSION
+                // Confirm draft
                 async function confirmDraft(id, t) {
                     if (!confirm(`Confirm transfer ${t.number}? This will update stock levels.`)) return;
                     
@@ -992,6 +1361,7 @@
                                         sku: product.sku,
                                         category: product.category || 'Uncategorized',
                                         price: product.price || 0,
+                                        cost: product.cost || 0,
                                         stock: item.qty,
                                         status: item.qty < 20 ? 'low-stock' : 'in-stock',
                                         warehouse: t.to,
@@ -1064,7 +1434,7 @@
                     }
                 };
 
-                // Submit transfer - FIXED VERSION
+                // Submit transfer immediately
                 document.getElementById('btn-submit').onclick = async () => {
                     if (!validateForm()) return;
                     const payload = serializeTransfer();
@@ -1141,6 +1511,7 @@
                                         sku: product.sku,
                                         category: product.category || 'Uncategorized',
                                         price: product.price || 0,
+                                        cost: product.cost || 0,
                                         stock: item.qty,
                                         status: item.qty < 20 ? 'low-stock' : 'in-stock',
                                         warehouse: payload.to,
@@ -1193,11 +1564,22 @@
                             alert('No confirmed transfers to export.');
                             return;
                         }
-                        const headers = ['Number', 'Date', 'From', 'To', 'Item Count', 'Items', 'Notes'];
+                        const headers = ['Transfer Number', 'Date', 'From Warehouse', 'To Warehouse', 'Item Count', 'Items', 'Notes', 'Status', 'Confirmed At'];
                         const rows = snap.docs.map(d => {
                             const t = d.data();
                             const itemsStr = t.items.map(i => `${i.sku || ''} ${i.name} x${i.qty} ${i.unit}`).join(' | ');
-                            return [t.number, t.date || '', t.from, t.to, t.items.length, itemsStr, t.notes || ''];
+                            const confirmedDate = t.confirmedAt?.seconds ? new Date(t.confirmedAt.seconds * 1000).toLocaleString() : '';
+                            return [
+                                t.number,
+                                t.date || '',
+                                t.from,
+                                t.to,
+                                t.items.length,
+                                itemsStr,
+                                t.notes || '',
+                                t.status,
+                                confirmedDate
+                            ];
                         });
                         const csv = [headers, ...rows].map(row => row.map(cell => {
                             const text = String(cell ?? '').replace(/\s+/g, ' ').trim();
@@ -1247,19 +1629,44 @@
                     };
                 }
 
-                // Search bar
-                document.getElementById('search-bar').addEventListener('input', () => {
-                    const search = document.getElementById('search-bar').value.toLowerCase();
-                    const draftItems = draftsList.querySelectorAll('div');
-                    const confirmedItems = confirmedList.querySelectorAll('div');
-                    draftItems.forEach(item => {
-                        const text = item.textContent.toLowerCase();
-                        item.style.display = search ? text.includes(search) ? '' : 'none' : '';
+                // Search functionality
+                document.getElementById('search-bar').addEventListener('input', (e) => {
+                    const searchTerm = e.target.value.toLowerCase();
+                    
+                    // Search in drafts
+                    const draftCards = draftsList.querySelectorAll('.transfer-card');
+                    draftCards.forEach(card => {
+                        const text = card.textContent.toLowerCase();
+                        card.style.display = text.includes(searchTerm) ? '' : 'none';
                     });
-                    confirmedItems.forEach(item => {
-                        const text = item.textContent.toLowerCase();
-                        item.style.display = search ? text.includes(search) ? '' : 'none' : '';
+                    
+                    // Search in confirmed
+                    const confirmedCards = confirmedList.querySelectorAll('.transfer-card');
+                    confirmedCards.forEach(card => {
+                        const text = card.textContent.toLowerCase();
+                        card.style.display = text.includes(searchTerm) ? '' : 'none';
                     });
+                    
+                    // Show empty states if all are hidden
+                    if (searchTerm) {
+                        const visibleDrafts = Array.from(draftCards).filter(c => c.style.display !== 'none').length;
+                        const visibleConfirmed = Array.from(confirmedCards).filter(c => c.style.display !== 'none').length;
+                        
+                        if (visibleDrafts === 0 && draftsList.querySelector('.empty-state')) {
+                            draftsList.querySelector('.empty-state').style.display = 'none';
+                        }
+                        
+                        if (visibleConfirmed === 0 && confirmedList.querySelector('.empty-state')) {
+                            confirmedList.querySelector('.empty-state').style.display = 'none';
+                        }
+                    } else {
+                        // Restore empty states if they exist
+                        const draftEmpty = draftsList.querySelector('.empty-state');
+                        if (draftEmpty) draftEmpty.style.display = '';
+                        
+                        const confirmedEmpty = confirmedList.querySelector('.empty-state');
+                        if (confirmedEmpty) confirmedEmpty.style.display = '';
+                    }
                 });
 
                 // Initialize global warehouse dropdown and sync
