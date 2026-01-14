@@ -502,39 +502,39 @@
                 <select id="global-warehouse" style="width:100%; padding:6px 8px; border-radius:4px; border:1px solid rgba(255,255,255,.3); background:#1f2d3a; color:#fff; margin-bottom:8px;"></select>
                 <h1>Stock<span>Master</span></h1>
             </div>
-            <div class="menu-item" data-href="index.html">
+            <div class="menu-item" data-href="/index">
                 <i class="fas fa-home"></i>
                 <span>Dashboard</span>
             </div>
-            <div class="menu-item" data-href="products.html">
+            <div class="menu-item" data-href="/products">
                 <i class="fas fa-boxes"></i>
                 <span>Products</span>
             </div>
-            <div class="menu-item" data-href="inventory.html">
+            <div class="menu-item" data-href="inventory">
                 <i class="fas fa-warehouse"></i>
                 <span>Inventory</span>
             </div>
-            <div class="menu-item active" data-href="transfers.html">
+            <div class="menu-item active" data-href="/transfers">
                 <i class="fas fa-exchange-alt"></i>
                 <span>Transfers</span>
             </div>
-            <div class="menu-item" data-href="orders.html">
+            <div class="menu-item" data-href="/orders">
                 <i class="fas fa-file-invoice-dollar"></i>
                 <span>Orders</span>
             </div>
-            <div class="menu-item" data-href="reports.html">
+            <div class="menu-item" data-href="/reports">
                 <i class="fas fa-chart-bar"></i>
                 <span>Reports</span>
             </div>
-            <div class="menu-item" data-href="suppliers.html">
+            <div class="menu-item" data-href="/suppliers">
                 <i class="fas fa-users"></i>
                 <span>Suppliers</span>
             </div>
-            <div class="menu-item" data-href="settings.html">
+            <div class="menu-item" data-href="/settings">
                 <i class="fas fa-cog"></i>
                 <span>Settings</span>
             </div>
-            <div class="menu-item" data-href="help.html">
+            <div class="menu-item" data-href="/help">
                 <i class="fas fa-question-circle"></i>
                 <span>Help & Support</span>
             </div>
@@ -690,18 +690,18 @@
                     const db = getFirestore(app);
                     onAuthStateChanged(auth, async (user) => {
                         if (!user) {
-                            window.location.href = 'login.html';
+                            window.location.href = '/login';
                             return;
                         }
                         setHeader(user.displayName, user.email);
-                        document.getElementById('btn-logout').onclick = () => signOut(auth).then(() => window.location.href = 'login.html');
+                        document.getElementById('btn-logout').onclick = () => signOut(auth).then(() => window.location.href = '/login');
                         await syncUserAccess(db, user);
                         setupTransfers(db, user);
                     });
                 } catch (e) {
                     console.error('Firebase initialization failed:', e);
                     alert('Failed to initialize application. Please try again later.');
-                    window.location.href = 'login.html';
+                    window.location.href = '/login';
                 }
             };
 
